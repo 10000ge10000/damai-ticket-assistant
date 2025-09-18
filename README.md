@@ -74,7 +74,7 @@ GUI版本：双击运行 start_gui.pyw
 
 **最简单的方法：**
 ```
-双击运行：安装依赖.bat
+pip install -r requirements.txt
 ```
 
 **手动安装方法：**
@@ -92,7 +92,7 @@ python start_gui.pyw
 **如果遇到闪退问题，请检查：**
 
 1. ✅ Python是否正确安装并添加到PATH
-2. ✅ 是否已运行 `安装依赖.bat` 或 `pip install -r requirements.txt`
+2. ✅ 是否已运行 `pip install -r requirements.txt`
 3. ✅ 是否安装了Chrome浏览器
 
 **推荐使用双击bat文件启动，会自动检测并安装依赖！**
@@ -159,7 +159,7 @@ ticket-assistant/
 ├── damai_gui.py              # GUI主程序
 ├── gui_concert.py            # GUI专用抢票模块
 ├── start_gui.pyw            # 一键启动脚本
-├── 安装依赖.bat              # 一键安装所有依赖库
+├── 安装依赖.txt              # 依赖安装说明
 ├── 一键启动GUI版本.bat        # GUI图形界面启动
 ├── 一键启动命令行版本.bat      # 命令行版本启动
 ├── damai/                   # 命令行版本模块
