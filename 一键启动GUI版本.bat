@@ -1,107 +1,112 @@
 @echo off
-:: 设置控制台编码为UTF-8
+:: 尝试设置UTF-8编码，忽略错误
 chcp 65001 >nul 2>&1
-title 大麦抢票工具 - GUI版本启动器
+
+:: 如果UTF-8不支持，尝试设置GBK编码
+if %errorlevel% neq 0 (
+    chcp 936 >nul 2>&1
+)
+
+title Damai Ticket Tool - GUI Version
 
 echo ================================
-echo      大麦抢票工具 v2.0
-echo         GUI图形界面版本
+echo      Damai Ticket Tool v2.0
+echo         GUI Version
 echo ================================
 echo.
 
-:: 切换到脚本所在目录
+:: Switch to script directory
 cd /d "%~dp0"
 
-:: 检查Python是否可用
-echo [1/4] 检查Python环境...
+:: Check Python availability
+echo [1/4] Checking Python environment...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] 未找到Python或Python未添加到环境变量
+    echo [ERROR] Python not found or not added to PATH
     echo.
-    echo 请按照以下步骤安装Python:
-    echo 1. 访问 https://www.python.org/downloads/
-    echo 2. 下载Python 3.9+版本
-    echo 3. 安装时务必勾选 "Add Python to PATH"
+    echo Please install Python following these steps:
+    echo 1. Visit https://www.python.org/downloads/
+    echo 2. Download Python 3.9+ version
+    echo 3. Make sure to check "Add Python to PATH" during installation
     echo.
     pause
     exit /b 1
 )
 
-:: 获取Python版本（简化版本，避免复杂的字符串处理）
-echo ✓ Python 已安装
+echo ✓ Python installed
 
-:: 检查必要文件是否存在
-echo [2/4] 检查程序文件...
+:: Check required files
+echo [2/4] Checking program files...
 if not exist "damai_gui.py" (
-    echo [错误] 找不到主程序文件 damai_gui.py
-    echo 请确保您下载了完整的项目文件
+    echo [ERROR] Main program file damai_gui.py not found
+    echo Please ensure you downloaded the complete project files
     pause
     exit /b 1
 )
 
 if not exist "requirements.txt" (
-    echo [错误] 找不到依赖列表文件 requirements.txt
-    echo 请确保您下载了完整的项目文件
+    echo [ERROR] Requirements file requirements.txt not found
+    echo Please ensure you downloaded the complete project files
     pause
     exit /b 1
 )
-echo ✓ 程序文件检查完成
+echo ✓ Program files check completed
 
-:: 检查并安装依赖
-echo [3/4] 检查Python依赖包...
+:: Check and install dependencies
+echo [3/4] Checking Python dependencies...
 python -c "import selenium" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ⚠ 检测到缺少selenium库，正在自动安装...
-    echo 请稍候，这可能需要几分钟时间...
+    echo ⚠ Missing selenium library, installing automatically...
+    echo Please wait, this may take a few minutes...
     echo.
     pip install -r requirements.txt
     if %errorlevel% neq 0 (
         echo.
-        echo [错误] 依赖安装失败
-        echo 请手动运行以下命令:
+        echo [ERROR] Dependency installation failed
+        echo Please run manually:
         echo    pip install -r requirements.txt
         echo.
-        echo 如果仍然失败，请尝试:
+        echo If still fails, try:
         echo    pip install selenium
         echo.
         pause
         exit /b 1
     )
-    echo ✓ 依赖包安装完成
+    echo ✓ Dependencies installed
 ) else (
-    echo ✓ 依赖包已安装
+    echo ✓ Dependencies already installed
 )
 
-:: 启动程序
-echo [4/4] 启动GUI程序...
-echo 正在启动图形界面，请稍候...
+:: Start program
+echo [4/4] Starting GUI program...
+echo Starting graphical interface, please wait...
 echo.
 
-:: 使用pythonw启动GUI程序（避免额外的命令行窗口）
+:: Use pythonw to start GUI program (avoids extra command window)
 pythonw damai_gui.py
 
-:: 检查启动结果
+:: Check startup result
 if %errorlevel% neq 0 (
     echo.
     echo ================================
-    echo          启动失败
+    echo        Startup Failed
     echo ================================
-    echo 可能的原因:
-    echo 1. 依赖包安装不完整
-    echo 2. Python版本不兼容（需要Python 3.7+）
-    echo 3. 系统缺少Chrome浏览器
+    echo Possible causes:
+    echo 1. Dependencies not completely installed
+    echo 2. Python version incompatible (requires Python 3.7+)
+    echo 3. Chrome browser not installed
     echo.
-    echo 解决方法:
-    echo 1. 手动安装依赖: pip install -r requirements.txt
-    echo 2. 安装Chrome浏览器
-    echo 3. 检查Python版本: python --version
+    echo Solutions:
+    echo 1. Install dependencies manually: pip install -r requirements.txt
+    echo 2. Install Chrome browser
+    echo 3. Check Python version: python --version
     echo.
-    echo 如需技术支持，请查看项目说明文档
+    echo For technical support, please check project README
     pause
 ) else (
     echo.
-    echo ✓ GUI程序启动成功！
-    echo 请在弹出的图形界面中进行操作
+    echo ✓ GUI program started successfully!
+    echo Please use the graphical interface that appeared
     echo.
     timeout /t 3 >nul
 )
