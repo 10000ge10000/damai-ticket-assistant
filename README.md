@@ -53,8 +53,12 @@ GUI版本：双击运行 一键启动GUI版本.bat
 
 ### 方式二：Python运行
 
+**⚠️ 重要提示：新用户只安装Python是不够的！**
+
+除了Python，还需要安装以下依赖库：
+
 ```bash
-# 安装依赖
+# 安装依赖（必须）
 pip install -r requirements.txt
 
 # 启动GUI界面
@@ -63,6 +67,13 @@ python damai_gui.py
 # 或使用一键启动脚本
 python start_gui.pyw
 ```
+
+**如果遇到闪退问题，请检查：**
+1. ✅ Python是否正确安装并添加到PATH
+2. ✅ 是否已运行 `pip install -r requirements.txt`
+3. ✅ 是否安装了Chrome浏览器
+
+**推荐使用双击bat文件启动，会自动检测并安装依赖！**
 
 ## 📋 使用流程
 
