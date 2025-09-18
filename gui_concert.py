@@ -129,10 +129,11 @@ class PageAnalyzer:
 class GUIConcert:
     """GUI专用的抢票类"""
     
-    def __init__(self, driver, config, log_callback=None):
+    def __init__(self, driver, config, log_callback=None, cookie_callback=None):
         self.driver = driver
         self.config = config
         self.log = log_callback or (lambda x: print(x))
+        self.save_cookie = cookie_callback or (lambda: None)  # Cookie保存回调
         
     def choose_ticket(self):
         """执行完整的抢票流程"""
@@ -140,6 +141,9 @@ class GUIConcert:
             # 访问目标页面
             self.log(f"🎯 前往演出页面: {self.config['target_url']}")
             self.driver.get(self.config['target_url'])
+            
+            # 页面加载后保存cookie
+            self.save_cookie()
             
             # 等待页面加载
             self._wait_for_page_load()

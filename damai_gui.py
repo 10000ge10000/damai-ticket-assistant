@@ -59,6 +59,7 @@ class DamaiGUI:
         
         # Cookie管理
         self.cookie_file = "damai_cookies.pkl"
+        self.last_cookie_save = time.time()  # 记录上次保存cookie的时间
         
         # 设置字体 - 增加两个号
         self.default_font = ("微软雅黑", 12)  # 从10增加到12
@@ -82,11 +83,26 @@ class DamaiGUI:
                 cookies = self.driver.get_cookies()
                 with open(self.cookie_file, 'wb') as f:
                     pickle.dump(cookies, f)
+                self.last_cookie_save = time.time()  # 更新保存时间
                 self.log("✅ Cookie已保存，下次启动时将自动登录")
                 return True
         except Exception as e:
             self.log(f"❌ Cookie保存失败: {e}")
         return False
+    
+    def auto_save_cookies_if_needed(self):
+        """如果需要，自动保存cookies（每5分钟保存一次）"""
+        try:
+            current_time = time.time()
+            # 如果距离上次保存超过5分钟，就自动保存
+            if self.driver and (current_time - self.last_cookie_save > 300):  # 300秒 = 5分钟
+                if self.save_cookies():
+                    self.log("🔄 自动保存Cookie（定期保存）")
+        except Exception as e:
+            self.log(f"⚠️ 自动保存Cookie失败: {e}")
+        
+        # 设置下次检查（30秒后）
+        self.root.after(30000, self.auto_save_cookies_if_needed)
     
     def load_cookies(self):
         """从文件加载cookies到浏览器"""
@@ -274,6 +290,9 @@ class DamaiGUI:
         self.log("🚀 大麦抢票工具启动成功")
         self.log("💡 提示：请先检测环境，然后输入演出链接进行分析")
         self.log("ℹ️ 登录为可选项，可在抢票时再进行登录")
+        
+        # 启动定期保存cookie功能
+        self.root.after(30000, self.auto_save_cookies_if_needed)  # 30秒后开始第一次检查
         
     def create_control_buttons(self, parent, row):
         """创建控制按钮区域"""
@@ -584,6 +603,9 @@ class DamaiGUI:
         self.update_step(2, "completed")  # 页面分析是index=2
         self.log("✅ 页面分析完成")
         
+        # 页面分析完成后自动保存cookies
+        self.save_cookies()
+        
     def _create_config_interface(self, info):
         """创建配置界面"""
         # 清除现有配置界面
@@ -722,13 +744,17 @@ class DamaiGUI:
             concert = GUIConcert(
                 driver=self.driver,
                 config=self.config,
-                log_callback=lambda msg: self.root.after(0, lambda: self.log(msg))
+                log_callback=lambda msg: self.root.after(0, lambda: self.log(msg)),
+                cookie_callback=lambda: self.root.after(0, self.auto_save_cookies_if_needed)
             )
             
             self.root.after(0, lambda: self.log("🎫 开始执行抢票流程..."))
             
             # 执行抢票
             concert.choose_ticket()
+            
+            # 抢票完成后自动保存cookies
+            self.root.after(0, lambda: self.save_cookies())
             
             self.root.after(0, lambda: self.log("✅ 抢票流程执行完成"))
             self.root.after(0, lambda: self.update_step(4, "completed"))  # 开始抢票是index=4
