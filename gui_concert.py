@@ -278,7 +278,7 @@ class GUIConcert:
     def _click_buy_button(self):
         """点击立即购买按钮"""
         try:
-            self.log("🎫 正在点击立即购买...")
+            self.log("🎫 正在点击立即购买/预订...")
             
             # 多种可能的购买按钮选择器
             buy_selectors = [
@@ -298,7 +298,7 @@ class GUIConcert:
                         EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
                     )
                     buy_btn.click()
-                    self.log("✅ 已点击购买按钮")
+                    self.log("✅ 已点击购买/预订按钮")
                     time.sleep(2)
                     return
                 except:
@@ -308,8 +308,11 @@ class GUIConcert:
             text_selectors = [
                 "立即购票",
                 "立即购买", 
+                "立即预订",              # 新增：支持预订按钮
                 "马上购买",
-                "不，立即购票"  # 新增：支持您提供的具体文本
+                "马上预订",              # 新增：支持预订按钮
+                "不，立即购票",          # 支持您之前提供的具体文本
+                "不，立即预订"           # 新增：支持您现在提供的预订文本
             ]
             
             for text in text_selectors:
@@ -319,16 +322,59 @@ class GUIConcert:
                     for element in elements:
                         if element.is_displayed() and element.is_enabled():
                             element.click()
-                            self.log(f"✅ 已点击购买按钮 (文本: {text})")
+                            self.log(f"✅ 已点击购买/预订按钮 (文本: {text})")
                             time.sleep(2)
                             return
                 except:
                     continue
                     
-            self.log("❌ 未找到购买按钮")
+            # JavaScript fallback - 最后的备选方案
+            try:
+                self.log("🔄 尝试JavaScript方式点击购买按钮...")
+                js_script = """
+                var buyTexts = ['立即购票', '立即购买', '立即预订', '马上购买', '马上预订', '不，立即购票', '不，立即预订'];
+                var buySelectors = ['.buy-link', '.buybtn', '.buy-btn', '[data-spm="dbuy"]', 'button[class*="buy"]', '.perform__order__buy'];
+                
+                // 首先尝试CSS选择器
+                for (var i = 0; i < buySelectors.length; i++) {
+                    var elements = document.querySelectorAll(buySelectors[i]);
+                    for (var j = 0; j < elements.length; j++) {
+                        if (elements[j].offsetWidth > 0 && elements[j].offsetHeight > 0) {
+                            elements[j].click();
+                            return true;
+                        }
+                    }
+                }
+                
+                // 然后尝试文本内容
+                for (var i = 0; i < buyTexts.length; i++) {
+                    var elements = document.querySelectorAll('*');
+                    for (var j = 0; j < elements.length; j++) {
+                        if (elements[j].textContent && elements[j].textContent.trim() === buyTexts[i]) {
+                            if (elements[j].offsetWidth > 0 && elements[j].offsetHeight > 0) {
+                                elements[j].click();
+                                return true;
+                            }
+                        }
+                    }
+                }
+                
+                return false;
+                """
+                
+                result = self.driver.execute_script(js_script)
+                if result:
+                    self.log("✅ 通过JavaScript成功点击购买/预订按钮")
+                    time.sleep(2)
+                    return
+                    
+            except Exception as e:
+                self.log(f"⚠️ JavaScript点击失败: {e}")
+                    
+            self.log("❌ 未找到购买/预订按钮")
             
         except Exception as e:
-            self.log(f"❌ 点击购买按钮失败: {e}")
+            self.log(f"❌ 点击购买/预订按钮失败: {e}")
     
     def _handle_purchase_page(self):
         """处理购买页面（选择观演人、确认等）"""
