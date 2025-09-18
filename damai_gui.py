@@ -49,6 +49,7 @@ class DamaiGUI:
         # 初始化变量
         self.driver = None
         self.target_url = ""
+        self.is_grabbing = False  # 抢票状态标志
         self.config = {
             "city": "",
             "date": "",
@@ -648,6 +649,11 @@ class DamaiGUI:
         self.commit_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(config_frame, text="自动提交订单 (谨慎使用)", 
                        variable=self.commit_var).pack(anchor="w", pady=2)
+                       
+        # 回流监听选项
+        self.listen_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(config_frame, text="启用回流监听 (售罄后继续等待)", 
+                       variable=self.listen_var).pack(anchor="w", pady=2)
         
         # 确认配置按钮
         ttk.Button(config_frame, text="✅ 确认配置", 
@@ -670,6 +676,7 @@ class DamaiGUI:
                 
             config["users"] = ["自动选择全部"]
             config["if_commit_order"] = self.commit_var.get()
+            config["if_listen"] = self.listen_var.get()  # 添加回流监听配置
             config["target_url"] = self.target_url
             
             self.config = config
@@ -683,6 +690,7 @@ class DamaiGUI:
 🎫 数量: 1张 (固定)
 👥 观演人: 自动选择全部
 📋 提交订单: {'是' if config['if_commit_order'] else '否'}
+🔄 回流监听: {'是' if config['if_listen'] else '否'}
 """
             
             self.log(summary)
@@ -713,6 +721,7 @@ class DamaiGUI:
             
         self.start_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
+        self.is_grabbing = True  # 设置抢票状态
         self.log("🎯 开始执行抢票...")
         
         # 在新线程中执行抢票
@@ -745,7 +754,8 @@ class DamaiGUI:
                 driver=self.driver,
                 config=self.config,
                 log_callback=lambda msg: self.root.after(0, lambda: self.log(msg)),
-                cookie_callback=lambda: self.root.after(0, self.auto_save_cookies_if_needed)
+                cookie_callback=lambda: self.root.after(0, self.auto_save_cookies_if_needed),
+                stop_check=lambda: not self.is_grabbing  # 停止检查回调
             )
             
             self.root.after(0, lambda: self.log("🎫 开始执行抢票流程..."))
@@ -763,6 +773,7 @@ class DamaiGUI:
             self.root.after(0, lambda: self.log(f"❌ 抢票执行失败: {e}"))
             self.root.after(0, lambda: self.update_step(4, "error"))      # 开始抢票是index=4
         finally:
+            self.is_grabbing = False  # 重置抢票状态
             self.root.after(0, lambda: self._reset_buttons())
             
     def _show_login_for_grabbing(self):
@@ -835,7 +846,8 @@ class DamaiGUI:
             
     def stop_grabbing(self):
         """停止抢票"""
-        self.log("⏹ 停止抢票...")
+        self.is_grabbing = False  # 设置停止标志
+        self.log("⏹ 正在停止抢票...")
         self._reset_buttons()
         
     def show_help(self):

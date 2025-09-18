@@ -129,14 +129,15 @@ class PageAnalyzer:
 class GUIConcert:
     """GUI专用的抢票类"""
     
-    def __init__(self, driver, config, log_callback=None, cookie_callback=None):
+    def __init__(self, driver, config, log_callback=None, cookie_callback=None, stop_check=None):
         self.driver = driver
         self.config = config
         self.log = log_callback or (lambda x: print(x))
         self.save_cookie = cookie_callback or (lambda: None)  # Cookie保存回调
+        self.should_stop = stop_check or (lambda: False)  # 停止检查回调
         
     def choose_ticket(self):
-        """执行完整的抢票流程"""
+        """执行完整的抢票流程（带循环等待）"""
         try:
             # 访问目标页面
             self.log(f"🎯 前往演出页面: {self.config['target_url']}")
@@ -160,15 +161,115 @@ class GUIConcert:
             if self.config.get('price'):
                 self._select_price(self.config['price'])
                 
-            # 立即购买
-            self._click_buy_button()
-            
-            # 处理购买页面
-            self._handle_purchase_page()
+            # 开始循环等待购买
+            self._start_ticket_loop()
             
         except Exception as e:
             self.log(f"❌ 抢票过程出错: {e}")
             raise
+    
+    def _start_ticket_loop(self):
+        """开始循环等待抢票"""
+        self.log("🔄 开始循环等待抢票...")
+        loop_count = 0
+        
+        while not self.should_stop():  # 检查停止标志
+            try:
+                loop_count += 1
+                self.log(f"🔄 第 {loop_count} 次尝试...")
+                
+                # 检查购买按钮状态
+                button_status = self._check_buy_button_status()
+                
+                if button_status == "available":
+                    self.log("✅ 发现可购买，开始抢票！")
+                    self._click_buy_button()
+                    self._handle_purchase_page()
+                    break  # 成功进入购买页面，退出循环
+                    
+                elif button_status == "not_started":
+                    self.log("⏳ 抢票未开始，等待中...")
+                    time.sleep(2)  # 等待2秒后重试
+                    
+                elif button_status == "sold_out":
+                    if self.config.get('if_listen', False):
+                        self.log("📋 已售罄，启用回流监听...")
+                        time.sleep(5)  # 回流监听间隔稍长
+                    else:
+                        self.log("❌ 已售罄且未启用回流监听")
+                        break
+                        
+                else:
+                    self.log("🔄 未知状态，刷新页面重试...")
+                    self.driver.refresh()
+                    time.sleep(3)
+                    
+                # 每隔一定次数刷新页面，防止页面超时
+                if loop_count % 10 == 0:
+                    self.log("🔄 定期刷新页面...")
+                    self.driver.refresh()
+                    time.sleep(2)
+                    self._wait_for_page_load()
+                    
+            except Exception as e:
+                self.log(f"⚠️ 循环中出现异常: {e}")
+                time.sleep(1)
+                continue
+                
+        if self.should_stop():
+            self.log("⏹ 用户停止了抢票")
+                
+    def _check_buy_button_status(self):
+        """检查购买按钮状态"""
+        try:
+            # 检查各种可能的按钮文本
+            button_texts = {
+                "提交缺货登记": "not_started",
+                "缺货登记": "sold_out", 
+                "立即购票": "available",
+                "立即购买": "available",
+                "立即预订": "available",
+                "不，立即购票": "available",
+                "不，立即预订": "available",
+                "马上购买": "available",
+                "马上预订": "available"
+            }
+            
+            # 尝试CSS选择器查找
+            buy_selectors = [
+                ".buy-link",
+                ".buybtn", 
+                ".buy-btn",
+                "[data-spm='dbuy']",
+                "button[class*='buy']",
+                ".perform__order__buy"
+            ]
+            
+            for selector in buy_selectors:
+                try:
+                    elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                    for element in elements:
+                        if element.is_displayed():
+                            text = element.text.strip()
+                            if text in button_texts:
+                                return button_texts[text]
+                except:
+                    continue
+                    
+            # 尝试文本查找
+            for text, status in button_texts.items():
+                try:
+                    elements = self.driver.find_elements(By.XPATH, f"//*[contains(text(), '{text}')]")
+                    if elements and elements[0].is_displayed():
+                        return status
+                except:
+                    continue
+                    
+            return "unknown"
+            
+        except Exception as e:
+            self.log(f"⚠️ 检查按钮状态失败: {e}")
+            return "unknown"
     
     def _wait_for_page_load(self):
         """等待页面加载完成"""
