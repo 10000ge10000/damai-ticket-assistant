@@ -1,5 +1,6 @@
 @echo off
-chcp 65001 >nul
+:: 设置控制台编码为UTF-8
+chcp 65001 >nul 2>&1
 title 大麦抢票工具 - GUI版本启动器
 
 echo ================================
@@ -17,7 +18,7 @@ python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo [错误] 未找到Python或Python未添加到环境变量
     echo.
-    echo 请按照以下步骤安装Python：
+    echo 请按照以下步骤安装Python:
     echo 1. 访问 https://www.python.org/downloads/
     echo 2. 下载Python 3.9+版本
     echo 3. 安装时务必勾选 "Add Python to PATH"
@@ -26,8 +27,8 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
-echo ✓ Python %PYTHON_VERSION% 已安装
+:: 获取Python版本（简化版本，避免复杂的字符串处理）
+echo ✓ Python 已安装
 
 :: 检查必要文件是否存在
 echo [2/4] 检查程序文件...
@@ -57,10 +58,10 @@ if %errorlevel% neq 0 (
     if %errorlevel% neq 0 (
         echo.
         echo [错误] 依赖安装失败
-        echo 请手动运行以下命令：
+        echo 请手动运行以下命令:
         echo    pip install -r requirements.txt
         echo.
-        echo 如果仍然失败，请尝试：
+        echo 如果仍然失败，请尝试:
         echo    pip install selenium
         echo.
         pause
@@ -76,7 +77,8 @@ echo [4/4] 启动GUI程序...
 echo 正在启动图形界面，请稍候...
 echo.
 
-python damai_gui.py
+:: 使用pythonw启动GUI程序（避免额外的命令行窗口）
+pythonw damai_gui.py
 
 :: 检查启动结果
 if %errorlevel% neq 0 (
@@ -84,15 +86,15 @@ if %errorlevel% neq 0 (
     echo ================================
     echo          启动失败
     echo ================================
-    echo 可能的原因：
+    echo 可能的原因:
     echo 1. 依赖包安装不完整
     echo 2. Python版本不兼容（需要Python 3.7+）
     echo 3. 系统缺少Chrome浏览器
     echo.
-    echo 解决方法：
-    echo 1. 手动安装依赖：pip install -r requirements.txt
+    echo 解决方法:
+    echo 1. 手动安装依赖: pip install -r requirements.txt
     echo 2. 安装Chrome浏览器
-    echo 3. 检查Python版本：python --version
+    echo 3. 检查Python版本: python --version
     echo.
     echo 如需技术支持，请查看项目说明文档
     pause
@@ -101,4 +103,5 @@ if %errorlevel% neq 0 (
     echo ✓ GUI程序启动成功！
     echo 请在弹出的图形界面中进行操作
     echo.
+    timeout /t 3 >nul
 )

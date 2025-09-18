@@ -1,5 +1,6 @@
 @echo off
-chcp 65001 >nul
+:: 设置控制台编码为UTF-8
+chcp 65001 >nul 2>&1
 title 大麦抢票工具 - 命令行版本启动器
 
 echo ================================
@@ -17,7 +18,7 @@ python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo [错误] 未找到Python或Python未添加到环境变量
     echo.
-    echo 请按照以下步骤安装Python：
+    echo 请按照以下步骤安装Python:
     echo 1. 访问 https://www.python.org/downloads/
     echo 2. 下载Python 3.9+版本
     echo 3. 安装时务必勾选 "Add Python to PATH"
@@ -26,8 +27,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
-echo ✓ Python %PYTHON_VERSION% 已安装
+echo ✓ Python 已安装
 
 :: 检查必要文件是否存在
 echo [2/4] 检查程序文件...
@@ -64,7 +64,7 @@ if %errorlevel% neq 0 (
     if %errorlevel% neq 0 (
         echo.
         echo [错误] 依赖安装失败
-        echo 请手动运行以下命令：
+        echo 请手动运行以下命令:
         echo    pip install -r requirements.txt
         echo.
         pause
@@ -90,14 +90,14 @@ if %errorlevel% neq 0 (
     echo ================================
     echo          启动失败
     echo ================================
-    echo 可能的原因：
+    echo 可能的原因:
     echo 1. 配置文件config.json配置错误
     echo 2. 依赖包安装不完整
     echo 3. 系统缺少Chrome浏览器
     echo.
-    echo 解决方法：
+    echo 解决方法:
     echo 1. 检查并修改damai\config.json配置
-    echo 2. 手动安装依赖：pip install -r requirements.txt
+    echo 2. 手动安装依赖: pip install -r requirements.txt
     echo 3. 安装Chrome浏览器
     echo.
     echo 配置说明请查看项目README文档
