@@ -53,10 +53,14 @@ GUI版本：双击运行 一键启动GUI版本.bat
 
 ### 方式二：Python运行
 
-**⚠️ 重要提示：新用户只安装Python是不够的！**
+**⚠️ 重要提示：新用户需要先安装依赖库！**
 
-除了Python，还需要安装以下依赖库：
+**最简单的方法：**
+```
+双击运行：安装依赖.bat
+```
 
+**手动安装方法：**
 ```bash
 # 安装依赖（必须）
 pip install -r requirements.txt
@@ -69,8 +73,9 @@ python start_gui.pyw
 ```
 
 **如果遇到闪退问题，请检查：**
+
 1. ✅ Python是否正确安装并添加到PATH
-2. ✅ 是否已运行 `pip install -r requirements.txt`
+2. ✅ 是否已运行 `安装依赖.bat` 或 `pip install -r requirements.txt`
 3. ✅ 是否安装了Chrome浏览器
 
 **推荐使用双击bat文件启动，会自动检测并安装依赖！**
@@ -137,11 +142,12 @@ ticket-assistant/
 ├── damai_gui.py              # GUI主程序
 ├── gui_concert.py            # GUI专用抢票模块
 ├── start_gui.pyw            # 一键启动脚本
+├── 安装依赖.bat              # 一键安装所有依赖库
 ├── 一键启动GUI版本.bat        # GUI图形界面启动
 ├── 一键启动命令行版本.bat      # 命令行版本启动
 ├── damai/                   # 命令行版本模块
 ├── damai_appium/           # 移动端版本(实验性)
-├── requirements.txt        # Python依赖
+├── requirements.txt        # Python依赖列表
 └── img/                    # 项目截图和流程图
 ```
 
