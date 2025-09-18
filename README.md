@@ -126,10 +126,10 @@ ticket-assistant/
 
 ## 🙏 致谢
 
-本项目基于 [MoonTechLab/Selene](https://github.com/MoonTechLab/Selene) 进行开发和优化。
+本项目基于 [WECENG/ticket-purchase](https://github.com/WECENG/ticket-purchase) 进行开发和优化。
 
 **特别感谢：**
-- 原作者 **MoonTechLab** 提供的优秀基础框架
+- 原作者 **WECENG** 提供的优秀基础框架
 - 所有为开源项目做出贡献的开发者们
 - 提供建议和反馈的用户社区
 
