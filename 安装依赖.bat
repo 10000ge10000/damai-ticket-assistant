@@ -1,96 +1,97 @@
 @echo off
 chcp 65001 >nul
-title 大麦抢票工具 - 依赖安装器
+title Damai Ticket Tool - Dependency Installer
 
 echo ================================
-echo    大麦抢票工具依赖安装器
+echo  Damai Ticket Tool Dependencies
+echo         Installer v2.0
 echo ================================
 echo.
-echo 本脚本将自动安装运行所需的所有依赖库
-echo 请确保您已经安装了Python 3.7+
+echo This script will automatically install all required dependencies
+echo Please ensure you have Python 3.7+ installed
 echo.
 
-:: 切换到脚本所在目录
+:: Switch to script directory
 cd /d "%~dp0"
 
-:: 检查Python是否可用
-echo [1/3] 检查Python环境...
+:: Check Python availability
+echo [1/3] Checking Python environment...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] 未找到Python或Python未添加到环境变量
+    echo [ERROR] Python not found or not added to PATH
     echo.
-    echo 请先安装Python：
-    echo 1. 访问 https://www.python.org/downloads/
-    echo 2. 下载Python 3.9+版本
-    echo 3. 安装时务必勾选 "Add Python to PATH"
+    echo Please install Python first:
+    echo 1. Visit https://www.python.org/downloads/
+    echo 2. Download Python 3.9+ version
+    echo 3. Make sure to check "Add Python to PATH" during installation
     echo.
-    echo 安装Python后请重新运行此脚本
+    echo After installing Python, please run this script again
     pause
     exit /b 1
 )
 
 for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
-echo ✓ 检测到 Python %PYTHON_VERSION%
+echo ✓ Detected Python %PYTHON_VERSION%
 
-:: 检查pip是否可用
-echo [2/3] 检查pip包管理器...
+:: Check pip availability
+echo [2/3] Checking pip package manager...
 pip --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] pip未安装或不可用
-    echo 请重新安装Python并确保包含pip
+    echo [ERROR] pip not installed or unavailable
+    echo Please reinstall Python and ensure pip is included
     pause
     exit /b 1
 )
-echo ✓ pip可用
+echo ✓ pip is available
 
-:: 安装依赖
-echo [3/3] 开始安装依赖包...
+:: Install dependencies
+echo [3/3] Starting dependency installation...
 echo.
-echo 正在安装必要的Python库，请稍候...
-echo 这可能需要几分钟时间，取决于您的网络速度。
+echo Installing required Python libraries, please wait...
+echo This may take a few minutes depending on your network speed.
 echo.
 
-:: 逐个安装主要依赖，显示详细进度
-echo ► 安装 selenium (网页自动化库)...
+:: Install main dependencies individually with detailed progress
+echo ► Installing selenium (web automation library)...
 pip install selenium
 if %errorlevel% neq 0 (
-    echo [错误] selenium安装失败
+    echo [ERROR] selenium installation failed
     goto :install_error
 )
-echo ✓ selenium 安装成功
+echo ✓ selenium installed successfully
 
 echo.
-echo ► 安装 webdriver-manager (自动管理浏览器驱动)...
+echo ► Installing webdriver-manager (automatic browser driver management)...
 pip install webdriver-manager
 if %errorlevel% neq 0 (
-    echo [警告] webdriver-manager安装失败，但不影响基本功能
+    echo [WARNING] webdriver-manager installation failed, but basic functionality should work
 )
 
 echo.
-echo ► 安装其他依赖包...
+echo ► Installing other dependencies...
 if exist "requirements.txt" (
     pip install -r requirements.txt
     if %errorlevel% neq 0 (
-        echo [警告] requirements.txt中的某些包安装失败
-        echo 但核心功能应该可以正常使用
+        echo [WARNING] Some packages in requirements.txt failed to install
+        echo But core functionality should work normally
     )
 ) else (
-    echo [提示] 未找到requirements.txt，跳过批量安装
+    echo [INFO] requirements.txt not found, skipping batch installation
 )
 
 echo.
 echo ================================
-echo        安装完成！
+echo     Installation Complete!
 echo ================================
 echo.
-echo ✓ 所有依赖已成功安装
-echo ✓ 您现在可以使用以下方式启动程序：
+echo ✓ All dependencies have been successfully installed
+echo ✓ You can now start the program using:
 echo.
-echo   方式1：双击 "一键启动GUI版本.bat"
-echo   方式2：双击 "一键启动命令行版本.bat"
-echo   方式3：运行命令 "python damai_gui.py"
+echo   Method 1: Double-click "一键启动GUI版本.bat"
+echo   Method 2: Double-click "一键启动命令行版本.bat"
+echo   Method 3: Run command "python damai_gui.py"
 echo.
-echo 如遇到问题，请查看README.md说明文档
+echo If you encounter any issues, please check README.md documentation
 echo.
 pause
 exit /b 0
@@ -98,17 +99,17 @@ exit /b 0
 :install_error
 echo.
 echo ================================
-echo        安装失败
+echo    Installation Failed
 echo ================================
 echo.
-echo 可能的解决方案：
-echo 1. 检查网络连接是否正常
-echo 2. 尝试使用国内pip源：
+echo Possible solutions:
+echo 1. Check your network connection
+echo 2. Try using Chinese pip mirror:
 echo    pip install -i https://pypi.tuna.tsinghua.edu.cn/simple selenium
-echo 3. 升级pip版本：
+echo 3. Upgrade pip version:
 echo    python -m pip install --upgrade pip
-echo 4. 使用管理员权限运行此脚本
+echo 4. Run this script as administrator
 echo.
-echo 如果问题持续存在，请查看详细错误信息或寻求技术支持
+echo If the problem persists, please check detailed error messages or seek technical support
 pause
 exit /b 1
