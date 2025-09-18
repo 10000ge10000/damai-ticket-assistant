@@ -47,7 +47,8 @@
 ### 方式一：双击启动 (最简单)
 
 ```
-双击运行：启动大麦抢票工具.bat
+GUI版本：双击运行 一键启动GUI版本.bat
+命令行版本：双击运行 一键启动命令行版本.bat
 ```
 
 ### 方式二：Python运行
@@ -87,7 +88,8 @@ ticket-assistant/
 ├── damai_gui.py              # GUI主程序
 ├── gui_concert.py            # GUI专用抢票模块
 ├── start_gui.pyw            # 一键启动脚本
-├── 启动大麦抢票工具.bat      # Windows批处理启动
+├── 一键启动GUI版本.bat        # GUI图形界面启动
+├── 一键启动命令行版本.bat      # 命令行版本启动
 ├── damai/                   # 命令行版本模块
 ├── damai_appium/           # 移动端版本(实验性)
 ├── requirements.txt        # Python依赖
