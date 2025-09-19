@@ -47,8 +47,7 @@
 ### 方式一：智能启动 (🔰新用户推荐)
 
 ```
-GUI版本：双击运行 一键启动GUI版本.bat
-命令行版本：双击运行 一键启动命令行版本.bat
+双击运行 一键启动.bat
 ```
 
 **特点：**
@@ -160,8 +159,8 @@ ticket-assistant/
 ├── gui_concert.py            # GUI专用抢票模块
 ├── start_gui.pyw            # 一键启动脚本
 ├── 安装依赖.txt              # 依赖安装说明
-├── 一键启动GUI版本.bat        # GUI图形界面启动
-├── 一键启动命令行版本.bat      # 命令行版本启动
+├── 一键启动.bat              # 标准启动脚本
+├── 一键启动2.bat             # 备用启动脚本
 ├── damai/                   # 命令行版本模块
 ├── damai_appium/           # 移动端版本(实验性)
 ├── requirements.txt        # Python依赖列表
