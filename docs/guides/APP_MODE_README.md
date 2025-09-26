@@ -144,30 +144,9 @@ appium --address 127.0.0.1 --port 4723
 }
 ```
 
-### 可选：多设备顺序执行
+### 可选：多设备顺序执行（规划中）
 
-```jsonc
-{
-  "server_url": "http://127.0.0.1:4723/wd/hub",
-  "keyword": "主配置",
-  "device_caps": {
-    "udid": "device-1",
-    "deviceName": "主手机"
-  },
-  "devices": [
-    {
-      "device_caps": {
-        "udid": "device-2",
-        "deviceName": "备机"
-      },
-      "keyword": "备机关键词",
-      "if_commit_order": false
-    }
-  ]
-}
-```
-
-> `devices` 数组用于追加额外会话，每条会话会复用主配置的其它字段（如 city/date）。目前按照顺序串行执行，暂未开放并行调度。
+~~该功能仍在规划中，原多设备顺序执行配置示例暂不适用，敬请期待后续更新。~~
 
 ---
 
@@ -217,7 +196,7 @@ pwsh ./scripts/app_mode_quickstart.ps1 -ConfigPath .\damai_appium\config.jsonc -
 
 该脚本会自动定位 Python，可直接在 Windows 中双击或在 PowerShell 执行。
 
-#### 即将上线的 CLI 示例
+#### 8. 即将上线的 CLI 示例
 
 - 后续将新增更完整的命令行参数讲解与多场景脚本模板，确保与网页模式指南保持一致。
 - 计划补充跨平台 Shell 示例、定时任务模板与环境检测脚本，便于批量执行或持续守候。
@@ -225,7 +204,7 @@ pwsh ./scripts/app_mode_quickstart.ps1 -ConfigPath .\damai_appium\config.jsonc -
 
 ---
 
-## 8. 常见问题 & 故障排查
+## 9. 常见问题 & 故障排查
 
 | 现象 | 可能原因 | 解决方案 |
 | --- | --- | --- |
@@ -238,7 +217,7 @@ pwsh ./scripts/app_mode_quickstart.ps1 -ConfigPath .\damai_appium\config.jsonc -
 
 ---
 
-## 9. 提升成功率的小技巧
+## 10. 提升成功率的小技巧
 
 - 提前登录大麦 App，并在“全部订单”里确认身份信息无误。
 - 使用有线网络或稳定的 Wi-Fi，避免抢票过程掉线。
@@ -247,7 +226,7 @@ pwsh ./scripts/app_mode_quickstart.ps1 -ConfigPath .\damai_appium\config.jsonc -
 
 ---
 
-## 10. 你已经完成了什么
+## 11. 你已经完成了什么
 
 - 搭建完整的 Appium + Python 抢票环境。
 - 能够在 GUI 中加载配置、检测依赖、查看日志与统计。
