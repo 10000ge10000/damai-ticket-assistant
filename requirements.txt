@@ -1,0 +1,20 @@
+# 大麦抢票工具依赖包
+# 使用命令安装: pip install -r requirements.txt
+
+# 核心依赖
+selenium>=4.18.0
+pydantic>=2.6.0,<3.0.0
+Appium-Python-Client>=3.1.0
+
+# 可选依赖（用于增强功能）
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# GUI相关（Python标准库，无需安装）
+# tkinter - Python内置GUI库
+# threading - 多线程支持
+# subprocess - 进程管理
+# json - JSON处理
+# time - 时间处理
+# os - 操作系统接口
+# sys - 系统相关
