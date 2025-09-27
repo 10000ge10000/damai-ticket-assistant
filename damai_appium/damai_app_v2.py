@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
+import subprocess
 from datetime import datetime, timezone
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.request import Request, urlopen
+from urllib.error import URLError
 
 from damai_appium import (
     AppTicketConfig,
@@ -73,6 +77,18 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="可选：将运行日志与统计导出为 JSON 文件",
     )
+    parser.add_argument(
+        "--start-at",
+        type=str,
+        default=None,
+        help="定时开抢时间（例如 2025-10-01T20:00:00+08:00 或 '2025-10-01 20:00:00' 按本地时区解析）",
+    )
+    parser.add_argument(
+        "--warmup-sec",
+        type=int,
+        default=0,
+        help="开抢前预热检查的提前秒数（0 表示不启用预热）",
+    )
     return parser.parse_args()
 
 
@@ -130,6 +146,115 @@ def _export_reports(target: Path, runs: List[Dict[str, Any]]) -> Path:
     return target
 
 
+def _local_tz():
+    """Return the current local timezone object."""
+    return datetime.now().astimezone().tzinfo
+
+
+def _parse_start_at_text(text: str) -> datetime:
+    """Parse --start-at into an aware UTC datetime.
+
+    Accepts:
+      - ISO8601 like '2025-10-01T20:00:00+08:00' or '2025-10-01T12:00:00Z'
+      - 'YYYY-MM-DD HH:MM:SS' (treated as local timezone)
+    """
+    raw = text.strip()
+    # Normalize 'Z' suffix to +00:00 for fromisoformat
+    norm = raw.replace("Z", "+00:00")
+    dt: Optional[datetime] = None
+    try:
+        dt = datetime.fromisoformat(norm)
+    except Exception:
+        # Try replace space with 'T'
+        try:
+            dt = datetime.fromisoformat(norm.replace(" ", "T"))
+        except Exception:
+            dt = None
+    if dt is None:
+        raise ValueError(f"无法解析开抢时间: {text}")
+
+    if dt.tzinfo is None:
+        # Assume local timezone when tzinfo missing
+        dt = dt.replace(tzinfo=_local_tz())
+    return dt.astimezone(timezone.utc)
+
+
+def _check_appium_status(server_url: str, timeout: float = 3.0) -> bool:
+    """Check Appium /status endpoint quickly."""
+    base = server_url.rstrip("/")
+    status_url = f"{base}/status"
+    try:
+        req = Request(status_url)
+        with urlopen(req, timeout=timeout) as resp:
+            return resp.status == 200
+    except URLError:
+        return False
+    except Exception:
+        return False
+
+
+def _adb_ready(timeout: float = 5.0) -> bool:
+    """Check if any adb device is in 'device' state (best-effort)."""
+    try:
+        proc = subprocess.run(
+            ["adb", "devices", "-l"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        if proc.returncode != 0:
+            return False
+        lines = (proc.stdout or "").strip().splitlines()
+        # Skip header line, look for any 'device' (but not 'unauthorized', 'offline')
+        for line in lines[1:]:
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].lower() == "device":
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def _wait_until_utc(target_utc: datetime, warmup_sec: int = 0, server_url: Optional[str] = None) -> None:
+    """Wait until target UTC time with optional warmup checks."""
+    now_utc = datetime.now(timezone.utc)
+    remain = (target_utc - now_utc).total_seconds()
+
+    if remain <= 0:
+        print(f"[INFO] 开抢时间已过 {abs(remain):.2f}s，立即执行。")
+        return
+
+    warmup = max(0, int(warmup_sec or 0))
+    if warmup > 0 and remain > warmup:
+        sleep_sec = remain - warmup
+        print(f"[INFO] 距离开抢还有 {remain:.2f}s，先等待 {sleep_sec:.2f}s 后进入预热检查。")
+        time.sleep(sleep_sec)
+
+    # Warmup window (best-effort health checks)
+    if warmup > 0:
+        if server_url:
+            ok = _check_appium_status(server_url)
+            status = "OK" if ok else "FAIL"
+            print(f"[INFO] Appium /status 预热检查: {status} ({server_url})")
+        adb_ok = _adb_ready()
+        print(f"[INFO] adb 设备状态: {'OK' if adb_ok else 'FAIL'}")
+
+    # Final precise wait to the target moment
+    while True:
+        now_utc = datetime.now(timezone.utc)
+        remain = (target_utc - now_utc).total_seconds()
+        if remain <= 0:
+            break
+        if remain > 1.0:
+            # Sleep most of the remaining time, keep 1s for fine-grained loop
+            time.sleep(remain - 1.0)
+        else:
+            # Sub-second busy wait
+            time.sleep(0.001)
+
+    print("[INFO] 到点，开始执行抢票流程。")
+
+
 def main() -> int:
     args = _parse_args()
     try:
@@ -145,6 +270,16 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"[ERROR] 配置加载失败: {exc}")
         return 2
+
+    # If scheduled start is specified, wait until the target time before executing.
+    if getattr(args, "start_at", None):
+        try:
+            target_utc = _parse_start_at_text(args.start_at)
+            first_server = configs[0].server_url if configs else None
+            _wait_until_utc(target_utc, getattr(args, "warmup_sec", 0), first_server)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[WARN] 定时等待发生异常: {exc}，将立即执行。")
+
     runs: List[Dict[str, Any]] = []
     total = len(configs)
     print(f"[INFO] 发现 {total} 个待执行会话。")

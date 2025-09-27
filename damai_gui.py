@@ -22,13 +22,13 @@ import importlib.util
 import shutil
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 确保能够导入selenium等模块
 try:
     from selenium import webdriver
     from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support.wait import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.common.exceptions import TimeoutException, NoSuchElementException
     SELENIUM_AVAILABLE = True
@@ -126,6 +126,14 @@ class DamaiGUI:
         self.app_runner_thread: Optional[threading.Thread] = None
         self._init_app_form_vars()
         self.app_metrics_var = tk.StringVar(value="尚未运行 App 抢票流程")
+
+        # 定时抢票相关变量
+        self.schedule_start_at_var = tk.StringVar(value="")
+        self.schedule_warmup_var = tk.IntVar(value=120)
+        self.schedule_status_var = tk.StringVar(value="未预约")
+        self._schedule_timer_id = None
+        self._schedule_target_epoch = 0.0
+        self._schedule_running = False
         
         # Cookie管理
         self.cookie_file = "damai_cookies.pkl"
@@ -264,10 +272,18 @@ class DamaiGUI:
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky="nsew")
         
-        # 配置网格权重
+        # 配置根窗口网格权重
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+
+        # 调整主区域网格比例：左侧（网页/App模式）更宽，右侧日志稍窄
+        main_frame.columnconfigure(0, weight=3)  # 左侧功能面板（Notebook）
+        main_frame.columnconfigure(1, weight=2)  # 右侧日志面板
+
+        # 提升“网页模式/App模式”内容区域的可用高度
+        main_frame.rowconfigure(1, weight=0)  # 步骤行（上方）不增高
+        main_frame.rowconfigure(2, weight=1)  # 主要功能区域（中间）占据剩余高度
+        main_frame.rowconfigure(3, weight=0)  # 控制按钮行（下方）不增高
         
         # 标题
         title_label = ttk.Label(main_frame, text="🎫 大麦抢票工具", font=self.title_font)
@@ -447,18 +463,22 @@ class DamaiGUI:
         """初始化 App 模式表单变量"""
 
         self.app_form_vars: dict[str, Any] = {
+            # 推荐值：Appium 标准网关 /wd/hub
             "server_url": tk.StringVar(value="http://127.0.0.1:4723"),
             "keyword": tk.StringVar(value=""),
             "city": tk.StringVar(value=""),
             "date": tk.StringVar(value=""),
             "price": tk.StringVar(value=""),
-            "price_index": tk.StringVar(value=""),
-            "wait_timeout": tk.StringVar(value="2.0"),
-            "retry_delay": tk.StringVar(value="2.0"),
+            # 推荐：优先从第一个票档开始（如需其它档位请修改为实际索引）
+            "price_index": tk.StringVar(value="0"),
+            # 推荐：开售冲刺参数
+            "wait_timeout": tk.StringVar(value="1.5"),
+            "retry_delay": tk.StringVar(value="1.2"),
+            # 设备能力推荐：UiAutomator2
             "device_name": tk.StringVar(value=""),
             "platform_version": tk.StringVar(value=""),
             "udid": tk.StringVar(value=""),
-            "automation_name": tk.StringVar(value=""),
+            "automation_name": tk.StringVar(value="UiAutomator2"),
             "if_commit_order": tk.BooleanVar(value=True),
         }
 
@@ -546,7 +566,8 @@ class DamaiGUI:
         params_frame = ttk.LabelFrame(content, text="运行参数", padding="5")
         params_frame.pack(fill="x", pady=(0, 10))
 
-        self.app_retries_var = tk.IntVar(value=2)
+        # 推荐：最大重试次数（开售冲刺）
+        self.app_retries_var = tk.IntVar(value=6)
         ttk.Label(params_frame, text="最大重试次数:").grid(row=0, column=0, sticky="w")
         retries_spin = ttk.Spinbox(
             params_frame,
@@ -625,13 +646,7 @@ class DamaiGUI:
         form_frame.pack(fill="both", expand=True, pady=(0, 10))
         self._create_app_form_fields(form_frame)
 
-        advanced_body = self._create_collapsible_section(
-            content,
-            title="高级选项",
-            description="调整自动提交、超时重试等高级参数，默认保持推荐值即可。",
-            initially_open=False,
-        )
-        self._create_app_advanced_fields(advanced_body)
+        # 取消“高级选项”分组，改为在抢票信息中单独展示“自动提交订单”开关
 
         self.app_form_status_label = ttk.Label(
             content,
@@ -639,6 +654,36 @@ class DamaiGUI:
             foreground="gray",
         )
         self.app_form_status_label.pack(anchor="w", pady=(0, 10))
+
+        # 定时抢票面板
+        schedule_frame = ttk.LabelFrame(content, text="定时抢票", padding="5")
+        schedule_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(schedule_frame, text="选择开抢时间").grid(row=0, column=0, sticky="w", pady=2)
+        self.schedule_time_combo = ttk.Combobox(
+            schedule_frame,
+            textvariable=self.schedule_start_at_var,
+            state="readonly",
+            width=28,
+            values=self._generate_time_option_labels(),
+        )
+        self.schedule_time_combo.grid(row=0, column=1, sticky="we", padx=(5, 0), pady=2)
+        ttk.Button(schedule_frame, text="刷新候选", command=self._refresh_schedule_options).grid(row=0, column=2, sticky="w", padx=(5, 0), pady=2)
+
+        ttk.Label(schedule_frame, text="预热秒数").grid(row=1, column=0, sticky="w", pady=2)
+        warmup_spin = ttk.Spinbox(schedule_frame, from_=5, to=600, textvariable=self.schedule_warmup_var, width=8)
+        warmup_spin.grid(row=1, column=1, sticky="w", padx=(5, 0), pady=2)
+
+        btns = ttk.Frame(schedule_frame)
+        btns.grid(row=2, column=0, columnspan=4, sticky="we", pady=(4, 0))
+        ttk.Button(btns, text="⏰ 预约开抢", command=self._schedule_start_clicked).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="❌ 取消预约", command=self._schedule_cancel).pack(side="left")
+
+        self.schedule_status_label = ttk.Label(schedule_frame, textvariable=self.schedule_status_var, foreground="gray")
+        self.schedule_status_label.grid(row=3, column=0, columnspan=4, sticky="w", pady=(4, 0))
+
+        # 初始化下拉候选
+        self._refresh_schedule_options()
 
         summary_frame = ttk.LabelFrame(content, text="配置摘要", padding="5")
         summary_frame.pack(fill="both", expand=True)
@@ -656,65 +701,79 @@ class DamaiGUI:
         self.app_summary_text.config(state="disabled")
 
     def _create_app_form_fields(self, container: ttk.LabelFrame) -> None:
-        """创建 App 模式基础配置表单"""
-
-        form = ttk.Frame(container)
-        form.pack(fill="both", expand=True)
+        """创建 App 模式基础配置表单（分隔设备信息与抢票信息）"""
+    
+        # 设备信息分组
+        device_frame = ttk.LabelFrame(container, text="设备信息", padding="6")
+        device_frame.pack(fill="x", pady=(0, 8))
         for col in range(4):
-            form.columnconfigure(col, weight=1 if col in (1, 3) else 0)
-
-        ttk.Label(form, text="Appium 服务地址").grid(row=0, column=0, sticky="w", pady=2)
-        server_entry = ttk.Entry(form, textvariable=self.app_form_vars["server_url"], width=35)
+            device_frame.columnconfigure(col, weight=1 if col in (1, 3) else 0)
+    
+        ttk.Label(device_frame, text="Appium 服务地址").grid(row=0, column=0, sticky="w", pady=2)
+        server_entry = ttk.Entry(device_frame, textvariable=self.app_form_vars["server_url"], width=35)
         server_entry.grid(row=0, column=1, columnspan=3, sticky="we", padx=(5, 0), pady=2)
         self.app_form_entries["server_url"] = server_entry
-
-        ttk.Label(form, text="设备名称").grid(row=1, column=0, sticky="w", pady=2)
-        device_entry = ttk.Entry(form, textvariable=self.app_form_vars["device_name"], width=24)
+    
+        ttk.Label(device_frame, text="设备名称").grid(row=1, column=0, sticky="w", pady=2)
+        device_entry = ttk.Entry(device_frame, textvariable=self.app_form_vars["device_name"], width=24)
         device_entry.grid(row=1, column=1, sticky="we", padx=(5, 0), pady=2)
         self.app_form_entries["device_name"] = device_entry
-
-        ttk.Label(form, text="设备 UDID").grid(row=1, column=2, sticky="w", pady=2)
-        udid_entry = ttk.Entry(form, textvariable=self.app_form_vars["udid"], width=24)
+    
+        ttk.Label(device_frame, text="设备 UDID").grid(row=1, column=2, sticky="w", pady=2)
+        udid_entry = ttk.Entry(device_frame, textvariable=self.app_form_vars["udid"], width=24)
         udid_entry.grid(row=1, column=3, sticky="we", padx=(5, 0), pady=2)
         self.app_form_entries["udid"] = udid_entry
-
-        ttk.Label(form, text="系统版本").grid(row=2, column=0, sticky="w", pady=2)
-        version_entry = ttk.Entry(form, textvariable=self.app_form_vars["platform_version"], width=24)
-        version_entry.grid(row=2, column=1, sticky="we", padx=(5, 0), pady=2)
-        self.app_form_entries["platform_version"] = version_entry
-
-        ttk.Label(form, text="关键词").grid(row=2, column=2, sticky="w", pady=2)
-        keyword_entry = ttk.Entry(form, textvariable=self.app_form_vars["keyword"], width=24)
-        keyword_entry.grid(row=2, column=3, sticky="we", padx=(5, 0), pady=2)
+    
+        # 抢票信息分组
+        ticket_frame = ttk.LabelFrame(container, text="抢票信息", padding="6")
+        ticket_frame.pack(fill="x", pady=(0, 8))
+        for col in range(4):
+            ticket_frame.columnconfigure(col, weight=1 if col in (1, 3) else 0)
+    
+        ttk.Label(ticket_frame, text="关键词").grid(row=0, column=0, sticky="w", pady=2)
+        keyword_entry = ttk.Entry(ticket_frame, textvariable=self.app_form_vars["keyword"], width=24)
+        keyword_entry.grid(row=0, column=1, sticky="we", padx=(5, 0), pady=2)
         self.app_form_entries["keyword"] = keyword_entry
-
-        ttk.Label(form, text="城市").grid(row=3, column=0, sticky="w", pady=2)
-        city_entry = ttk.Entry(form, textvariable=self.app_form_vars["city"], width=24)
-        city_entry.grid(row=3, column=1, sticky="we", padx=(5, 0), pady=2)
+    
+        ttk.Label(ticket_frame, text="城市").grid(row=0, column=2, sticky="w", pady=2)
+        city_entry = ttk.Entry(ticket_frame, textvariable=self.app_form_vars["city"], width=24)
+        city_entry.grid(row=0, column=3, sticky="we", padx=(5, 0), pady=2)
         self.app_form_entries["city"] = city_entry
-
-        ttk.Label(form, text="日期").grid(row=3, column=2, sticky="w", pady=2)
-        date_entry = ttk.Entry(form, textvariable=self.app_form_vars["date"], width=24)
-        date_entry.grid(row=3, column=3, sticky="we", padx=(5, 0), pady=2)
-        self.app_form_entries["date"] = date_entry
-
-        ttk.Label(form, text="票价文本").grid(row=4, column=0, sticky="w", pady=2)
-        price_entry = ttk.Entry(form, textvariable=self.app_form_vars["price"], width=24)
-        price_entry.grid(row=4, column=1, columnspan=3, sticky="we", padx=(5, 0), pady=2)
+    
+        ttk.Label(ticket_frame, text="票价文本").grid(row=1, column=0, sticky="w", pady=2)
+        price_entry = ttk.Entry(ticket_frame, textvariable=self.app_form_vars["price"], width=24)
+        price_entry.grid(row=1, column=1, sticky="we", padx=(5, 0), pady=2)
         self.app_form_entries["price"] = price_entry
+    
+        ttk.Label(ticket_frame, text="票价索引").grid(row=1, column=2, sticky="w", pady=2)
+        price_index_entry = ttk.Entry(ticket_frame, textvariable=self.app_form_vars["price_index"], width=24)
+        price_index_entry.grid(row=1, column=3, sticky="we", padx=(5, 0), pady=2)
+        self.app_form_entries["price_index"] = price_index_entry
+    
+        ttk.Label(ticket_frame, text="等待超时(s)").grid(row=2, column=0, sticky="w", pady=2)
+        wait_entry = ttk.Entry(ticket_frame, textvariable=self.app_form_vars["wait_timeout"], width=24)
+        wait_entry.grid(row=2, column=1, sticky="we", padx=(5, 0), pady=2)
+        self.app_form_entries["wait_timeout"] = wait_entry
+    
+        ttk.Label(ticket_frame, text="重试间隔(s)").grid(row=2, column=2, sticky="w", pady=2)
+        retry_entry = ttk.Entry(ticket_frame, textvariable=self.app_form_vars["retry_delay"], width=24)
+        retry_entry.grid(row=2, column=3, sticky="we", padx=(5, 0), pady=2)
+        self.app_form_entries["retry_delay"] = retry_entry
 
-        ttk.Label(form, text="观演人（每行一个）").grid(row=5, column=0, sticky="nw", pady=2)
-        self.app_users_text = scrolledtext.ScrolledText(form, height=4, wrap="word", font=self.default_font)
-        self.app_users_text.grid(row=5, column=1, columnspan=3, sticky="we", padx=(5, 0), pady=2)
-        self.app_users_text.bind("<<Modified>>", self._on_app_users_modified)
+        # 自动提交订单开关（从高级选项迁移到抢票信息分组）
+        ttk.Label(ticket_frame, text="自动提交订单").grid(row=3, column=0, sticky="w", pady=2)
+        commit_check = ttk.Checkbutton(
+            ticket_frame,
+            text="完成下单流程后自动提交",
+            variable=self.app_form_vars["if_commit_order"],
+            onvalue=True,
+            offvalue=False,
+        )
+        commit_check.grid(row=3, column=1, columnspan=3, sticky="w", pady=2)
+        self.app_form_entries["if_commit_order"] = commit_check
 
-        ttk.Label(
-            form,
-            text="提示：如需多人抢票，可填写多行观演人姓名；留空将沿用配置文件或默认值。",
-            foreground="gray",
-            wraplength=420,
-            justify="left",
-        ).grid(row=6, column=0, columnspan=4, sticky="w", pady=(2, 0))
+        viewers_note = ttk.Label(ticket_frame, text="观演人：默认全选，无需填写", foreground="gray")
+        viewers_note.grid(row=4, column=0, columnspan=4, sticky="w", pady=(2, 0))
 
         self._update_app_summary_from_form()
 
@@ -963,7 +1022,7 @@ class DamaiGUI:
         elif "server_url" not in payload:
             payload["server_url"] = ""
 
-        for key in ("keyword", "city", "date", "price"):
+        for key in ("keyword", "city", "price"):
             value = self.app_form_vars[key].get().strip()
             payload[key] = value or None
 
@@ -1237,14 +1296,11 @@ class DamaiGUI:
             summary_lines.append(f"🏙️ 城市: {config.city}")
         if config.keyword:
             summary_lines.append(f"🔎 关键词: {config.keyword}")
-        if config.date:
-            summary_lines.append(f"📅 日期: {config.date}")
         if config.price:
             summary_lines.append(f"💰 价格: {config.price}")
         if config.price_index is not None:
             summary_lines.append(f"🎯 价格索引: {config.price_index}")
-        if config.users:
-            summary_lines.append("👥 观演人: " + ", ".join(config.users))
+        summary_lines.append("👥 观演人: 默认全选")
         summary_lines.append(f"🕒 等待超时: {config.wait_timeout}s")
         summary_lines.append(f"🔁 重试间隔: {config.retry_delay}s")
 
@@ -1255,6 +1311,178 @@ class DamaiGUI:
 
         self.app_summary_text.insert(tk.END, "\n".join(summary_lines))
         self.app_summary_text.config(state="disabled")
+
+    # ------------------------------
+    # 定时抢票：预约、解析、倒计时、预热与触发
+    # ------------------------------
+    def _schedule_start_clicked(self) -> None:
+        """预约定时抢票：校验模式/配置/时间并启动倒计时。"""
+        if self.mode_var.get() != "app":
+            messagebox.showwarning("提示", "请先切换到 App 模式")
+            return
+        if not (self.app_env_ready and self.app_config_ready):
+            messagebox.showwarning("提示", "请先完成环境检测与参数配置")
+            return
+
+        selection = self.schedule_start_at_var.get().strip()
+        target_epoch = self._resolve_selected_start_epoch(selection)
+        if target_epoch is None:
+            # 兼容旧格式：允许用户仍然填入完整时间字符串（如果通过其它方式传入）
+            target_epoch = self._parse_start_time_to_epoch(selection)
+        if target_epoch is None:
+            messagebox.showerror("错误", "请选择开抢时间（下拉框）或点击“刷新候选”后重新选择")
+            return
+
+        now = time.time()
+        if target_epoch <= now:
+            messagebox.showerror("错误", "开抢时间不能早于当前时间")
+            return
+
+        self._schedule_target_epoch = target_epoch
+        self._schedule_running = True
+        self.schedule_status_var.set("已预约：倒计时准备中…")
+        self.log(f"⏰ 已预约定时抢票：{selection}")
+        self._schedule_tick()
+
+    def _parse_start_time_to_epoch(self, text: str) -> Optional[float]:
+        """解析用户输入的开抢时间为 epoch 秒，支持 ISO8601 或 'YYYY-MM-DD HH:MM:SS' 本地时区。"""
+        if not text:
+            return None
+        # 优先尝试 ISO8601
+        try:
+            dt = datetime.fromisoformat(text)
+            return dt.timestamp()
+        except Exception:
+            pass
+        # 回退为 'YYYY-MM-DD HH:MM:SS' 本地时区
+        try:
+            dt = datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+            return time.mktime(dt.timetuple())
+        except Exception:
+            return None
+
+    def _resolve_selected_start_epoch(self, label: str) -> Optional[float]:
+        """将下拉选项解析为目标 epoch 秒。支持：X分钟后/1小时后/下一个半点/下一个整点。"""
+        if not label:
+            return None
+        try:
+            now_dt = datetime.now()
+            if re.match(r"^\d+分钟后$", label):
+                minutes = int(label.replace("分钟后", ""))
+                target_dt = now_dt + timedelta(minutes=minutes)
+                target_dt = target_dt.replace(second=0, microsecond=0)
+                return target_dt.timestamp()
+            if label == "1小时后":
+                target_dt = now_dt + timedelta(hours=1)
+                target_dt = target_dt.replace(second=0, microsecond=0)
+                return target_dt.timestamp()
+            if label == "下一个半点":
+                base = now_dt.replace(second=0, microsecond=0)
+                if base.minute < 30:
+                    target_dt = base.replace(minute=30)
+                else:
+                    target_dt = (base + timedelta(hours=1)).replace(minute=30)
+                return target_dt.timestamp()
+            if label == "下一个整点":
+                base = now_dt.replace(second=0, microsecond=0, minute=0)
+                target_dt = base + timedelta(hours=1)
+                return target_dt.timestamp()
+            # 非预设标签，返回 None 交由旧解析逻辑处理
+            return None
+        except Exception:
+            return None
+
+    def _generate_time_option_labels(self) -> List[str]:
+        """生成常用的未来时间选项标签。"""
+        return [
+            "5分钟后",
+            "10分钟后",
+            "15分钟后",
+            "20分钟后",
+            "30分钟后",
+            "45分钟后",
+            "1小时后",
+            "下一个半点",
+            "下一个整点",
+        ]
+
+    def _refresh_schedule_options(self) -> None:
+        """刷新下拉候选并设置默认选项。"""
+        try:
+            options = self._generate_time_option_labels()
+            if hasattr(self, "schedule_time_combo") and self.schedule_time_combo is not None:
+                self.schedule_time_combo.config(values=options)
+                # 默认选中“10分钟后”
+                try:
+                    idx = options.index("10分钟后")
+                except ValueError:
+                    idx = 0
+                self.schedule_time_combo.current(idx)
+                self.schedule_start_at_var.set(options[idx])
+        except Exception as exc:  # noqa: BLE001
+            self.log(f"⚠️ 刷新候选失败: {exc}")
+
+    def _schedule_tick(self) -> None:
+        """倒计时心跳：更新剩余时间、执行预热检查、到点自动触发 App 抢票。"""
+        if not self._schedule_running:
+            return
+
+        now = time.time()
+        remaining = max(int(self._schedule_target_epoch - now), 0)
+        try:
+            warmup = max(int(self.schedule_warmup_var.get() or 0), 0)
+        except Exception:
+            warmup = 0
+
+        if remaining > 0:
+            # 状态更新
+            self.schedule_status_var.set(f"倒计时：{remaining} 秒（预热 {warmup}s）")
+            # 预热检查触发点
+            if warmup > 0 and remaining == warmup:
+                self.log("🔧 进入预热检查阶段")
+                try:
+                    self._preheat_checks()
+                except Exception as exc:  # noqa: BLE001
+                    self.schedule_status_var.set(f"预热检查失败：{exc}")
+                    self._schedule_running = False
+                    return
+            # 继续计时
+            self._schedule_timer_id = self.root.after(1000, self._schedule_tick)
+            return
+
+        # 到点执行
+        self.schedule_status_var.set("到点执行：开始抢票…")
+        self._schedule_running = False
+        self._schedule_timer_id = None
+        self._start_app_grabbing()
+
+    def _preheat_checks(self) -> None:
+        """执行预热健康检查：Appium /status 与 adb 设备可用性。"""
+        # Appium 服务探活与能力解析
+        config = self._validate_app_server()
+        # 设备就绪性检查
+        has_ready_device = self._detect_connected_devices()
+        if not has_ready_device:
+            raise RuntimeError("未检测到可用设备，请检查 USB/授权后重试")
+        # 更新摘要（可选）
+        try:
+            self._set_app_summary_text(config)
+        except Exception:  # noqa: BLE001
+            pass
+        self.schedule_status_var.set("预热检查通过")
+
+    def _schedule_cancel(self) -> None:
+        """取消预约：停止倒计时并重置状态。"""
+        if self._schedule_timer_id is not None:
+            try:
+                self.root.after_cancel(self._schedule_timer_id)
+            except Exception:  # noqa: BLE001
+                pass
+        self._schedule_timer_id = None
+        self._schedule_running = False
+        self._schedule_target_epoch = 0.0
+        self.schedule_status_var.set("未预约")
+        self.log("❌ 已取消定时预约")
 
     def update_step(self, step_index, status="active"):
         """更新步骤状态"""

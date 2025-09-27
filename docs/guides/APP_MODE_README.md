@@ -257,3 +257,125 @@ pwsh ./scripts/app_mode_quickstart.ps1 -ConfigPath .\damai_appium\config.jsonc -
 如需扩展更多高级功能（如定时任务、远程调度、自定义脚本），欢迎继续关注仓库后续更新或参与贡献。
 
 祝你抢票顺利！🎫
+
+## 12. 定时抢票（App 模式）
+
+> 本节介绍如何在 App 模式下按指定时间自动开抢，基于已提供的 CLI 入口与新增参数，无需修改 GUI。
+
+### 功能概述
+
+- 在命令行入口于到点时自动开始执行抢票流程，支持到点前预热检查（Appium /status 与 adb 设备状态）。
+- 实现位置：入口逻辑与参数解析在 [damai_appium/damai_app_v2.py](damai_appium/damai_app_v2.py:133)，新增参数解析见 [_parse_args()](damai_appium/damai_app_v2.py:56)。
+
+### 参数说明
+
+- `--start-at`：定时开抢时间
+  - 支持 ISO8601：如 `2025-10-01T20:00:00+08:00`、`2025-10-01T12:00:00Z`
+  - 支持本地时区格式：`'YYYY-MM-DD HH:MM:SS'`（按本地时区解析）
+- `--warmup-sec`：到点前预热检查窗口（秒）
+  - 在到点前进入该窗口时，会快速检查 Appium `/status` 与 `adb devices -l` 是否为 `device` 状态
+- 其它常用参数
+  - `--config`：配置文件路径（默认读取 `damai_appium/config.jsonc`）
+  - `--retries`：最大尝试次数（包含首次执行）
+  - `--export-report`：导出本次运行的 JSON 报告，方便复盘
+
+### 使用示例（命令行）
+
+- 本地时区格式（香港/UTC+8）
+  ```powershell
+  python -m damai_appium.damai_app_v2 `
+    --config damai_appium/config.jsonc `
+    --retries 6 `
+    --start-at "2025-10-01 20:00:00" `
+    --warmup-sec 120 `
+    --export-report run-report.json
+  ```
+- ISO8601（显式时区）
+  ```powershell
+  python -m damai_appium.damai_app_v2 `
+    --config damai_appium/config.jsonc `
+    --retries 6 `
+    --start-at 2025-10-01T20:00:00+08:00 `
+    --warmup-sec 120 `
+    --export-report run-report.json
+  ```
+
+### 使用示例（PowerShell 快速脚本）
+
+- 脚本位置与扩展参数：支持 `-StartAt` 与 `-WarmupSec` 封装调用 [scripts/app_mode_quickstart.ps1](scripts/app_mode_quickstart.ps1:1)
+  ```powershell
+  pwsh ./scripts/app_mode_quickstart.ps1 `
+    -ConfigPath .\damai_appium\config.jsonc `
+    -Retries 6 `
+    -StartAt "2025-10-01 20:00:00" `
+    -WarmupSec 120
+  ```
+
+### Windows 任务计划程序（Task Scheduler）示例步骤
+
+1. 打开“任务计划程序” → “创建任务”。
+2. 触发器：选择具体日期与时间（建议提前确保系统时间同步）。
+3. 操作：
+   - Program/script: `python`
+   - Arguments: `-m damai_appium.damai_app_v2 --config "C:\path\damai_appium\config.jsonc" --retries 6 --start-at "2025-10-01 20:00:00" --warmup-sec 120 --export-report "C:\logs\run-report.json"`
+   - Start in: 项目根目录（例如 `C:\path\to\damai-ticket-assistant`）
+   - 或使用 PowerShell 脚本：Program/script `pwsh`，Arguments `-File "C:\path\to\scripts\app_mode_quickstart.ps1" -ConfigPath "C:\path\damai_appium\config.jsonc" -Retries 6 -StartAt "2025-10-01 20:00:00" -WarmupSec 120`
+4. 条件与设置：勾选“允许按需运行”与“即使用户未登录也运行”（按需选择）；建议开启“以最高权限运行”（避免环境权限问题）。
+
+### 参数搭配建议
+
+- 开售冲刺：`--retries 5~6`、`--warmup-sec 60~180`；配置中 `wait_timeout≈1.4~1.6`、`retry_delay≈1.0~1.2`、`price_index` 精准。
+- 守候回流：`--retries 8~10`、`--warmup-sec 120~300`；配置中 `wait_timeout≈1.8~2.2`、`retry_delay≈1.5`。
+
+### 前置条件与健康检查
+
+- Appium Server 建议提前常驻（如 `appium --address 127.0.0.1 --port 4723 --relaxed-security`），避免到点启动引入抖动（说明见 [damai_appium/app.md](damai_appium/app.md:4)）。
+- `adb devices -l` 输出须为 `device` 状态（解析能力在 [damai_appium/config.py](damai_appium/config.py:361)）；设备需开启开发者模式、USB 调试“始终允许”。
+
+### 报告与复盘
+
+- 使用 `--export-report` 导出 JSON（包含最终阶段、尝试次数、失败码与耗时），导出逻辑见 [_export_reports()](damai_appium/damai_app_v2.py:104) 与运行指标来源 [DamaiAppTicketRunner.run()](damai_appium/runner.py:199)。
+- 根据报告中的 `final_phase` 与 `failure_code` 调参（例如增大 `--retries`、微调 `wait_timeout`/`retry_delay`、修正 `price_index`），提升命中率与稳定性。
+
+## ⏰ 定时抢票（App 模式）
+
+- 功能概述：在 CLI 入口到达指定时间点时自动开始 App 模式抢票流程，支持到点前预热检查（Appium /status 与 adb 设备状态）。
+- 实现位置与入口参考：[main()](damai_appium/damai_app_v2.py:133)、参数解析 [_parse_args()](damai_appium/damai_app_v2.py:56)
+
+参数对照表
+| 序号 | 参数名 | 说明 | 示例值 | 默认值 |
+|---|---|---|---|---|
+| 1 | --start-at | 定时开抢时间，支持 ISO8601（含时区）或本地时区的“YYYY-MM-DD HH:MM:SS” | 2025-10-01T20:00:00+08:00；"2025-10-01 20:00:00" | 未设置（立即执行） |
+| 2 | --warmup-sec | 到点前预热检查窗口（秒），在窗口内检查 Appium 服务与 adb 设备状态 | 120 | 0（不启用） |
+| 3 | --config | 配置文件路径 | damai_appium/config.jsonc | 默认读取 damai_appium/config.jsonc |
+| 4 | --retries | 最大尝试次数（包含首次） | 6 | 3 |
+| 5 | --export-report | 导出运行报告到 JSON 文件 | run-report.json | 未设置（不导出） |
+
+使用示例（命令行）
+- 本地时区格式（香港/UTC+8）
+  - python -m damai_appium.damai_app_v2 --config damai_appium/config.jsonc --retries 6 --start-at "2025-10-01 20:00:00" --warmup-sec 120 --export-report run-report.json
+- ISO8601（显式时区）
+  - python -m damai_appium.damai_app_v2 --config damai_appium/config.jsonc --retries 6 --start-at 2025-10-01T20:00:00+08:00 --warmup-sec 120 --export-report run-report.json
+
+使用示例（PowerShell 快速脚本）
+- 已支持 `-StartAt` 与 `-WarmupSec` 参数，用于封装命令行调用：
+  - pwsh ./scripts/app_mode_quickstart.ps1 -ConfigPath .\damai_appium\config.jsonc -Retries 6 -StartAt "2025-10-01 20:00:00" -WarmupSec 120
+- 脚本位置：[scripts/app_mode_quickstart.ps1](scripts/app_mode_quickstart.ps1:1)
+
+落地建议（Windows 任务计划程序）
+- Program/script: python
+- Arguments: -m damai_appium.damai_app_v2 --config "C:\path\damai_appium\config.jsonc" --retries 6 --start-at "2025-10-01 20:00:00" --warmup-sec 120 --export-report "C:\logs\run-report.json"
+- Start in: 项目根目录（例如 C:\path\to\damai-ticket-assistant）
+- 或使用 PowerShell 脚本：Program/script: pwsh；Arguments: -File "C:\path\to\scripts\app_mode_quickstart.ps1" -ConfigPath "C:\path\damai_appium\config.jsonc" -Retries 6 -StartAt "2025-10-01 20:00:00" -WarmupSec 120
+
+参数搭配建议
+- 开售冲刺：--retries 5~6；--warmup-sec 60~180；配置中 wait_timeout≈1.4~1.6、retry_delay≈1.0~1.2、price_index 精准。
+- 守候回流：--retries 8~10；--warmup-sec 120~300；配置中 wait_timeout≈1.8~2.2、retry_delay≈1.5。
+
+前置条件与健康检查
+- Appium Server 建议提前常驻（如 appium --address 127.0.0.1 --port 4723 --relaxed-security），避免到点启动引入抖动，说明详见 [安卓端V2版本介绍](damai_appium/app.md:4)。
+- adb devices -l 输出须为 device 状态（解析能力在 [parse_adb_devices()](damai_appium/config.py:361)），设备需开启开发者模式与 USB 调试“始终允许”。
+
+报告与复盘
+- 使用 --export-report 导出 JSON（包含最终阶段、尝试次数、失败码与耗时），导出逻辑见 [_export_reports()](damai_appium/damai_app_v2.py:104)，运行指标来源 [DamaiAppTicketRunner.run()](damai_appium/runner.py:199)。
+- 根据报告中的 final_phase 与 failure_code 调参（增大 --retries、微调 wait_timeout/retry_delay、修正 price_index），提升命中率与稳定性。

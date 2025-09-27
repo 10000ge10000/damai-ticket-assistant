@@ -5,12 +5,26 @@ param(
 
     [Parameter(Mandatory = $false)]
     [int]
-    $Retries = 3
+    $Retries = 3,
+
+    [Parameter(Mandatory = $false)]
+    [string]
+    $StartAt = "",
+
+    [Parameter(Mandatory = $false)]
+    [int]
+    $WarmupSec = 0
 )
 
 Write-Host "[INFO] Damai App 模式快速启动脚本" -ForegroundColor Cyan
 Write-Host "[INFO] 配置文件: $ConfigPath" -ForegroundColor Cyan
 Write-Host "[INFO] 重试次数: $Retries" -ForegroundColor Cyan
+if ($StartAt -and $StartAt.Trim().Length -gt 0) {
+    Write-Host "[INFO] 定时开抢: $StartAt" -ForegroundColor Cyan
+}
+if ($WarmupSec -gt 0) {
+    Write-Host "[INFO] 预热检查: $WarmupSec 秒" -ForegroundColor Cyan
+}
 
 if (-not (Test-Path $ConfigPath)) {
     Write-Host "[ERROR] 未找到配置文件: $ConfigPath" -ForegroundColor Red
@@ -30,7 +44,17 @@ try {
     }
 }
 
-$arguments = @("-m", "damai_appium.damai_app_v2", "--config", (Resolve-Path $ConfigPath).Path, "--retries", $Retries)
+$arguments = @(
+    "-m", "damai_appium.damai_app_v2",
+    "--config", (Resolve-Path $ConfigPath).Path,
+    "--retries", $Retries
+)
+if ($StartAt -and $StartAt.Trim().Length -gt 0) {
+    $arguments += @("--start-at", $StartAt)
+}
+if ($WarmupSec -gt 0) {
+    $arguments += @("--warmup-sec", $WarmupSec)
+}
 
 Write-Host "[INFO] 使用 Python 可执行文件: $pythonCmd" -ForegroundColor Cyan
 Write-Host "[INFO] 开始执行 Appium 抢票流程..." -ForegroundColor Cyan

@@ -502,33 +502,151 @@ class DamaiAppTicketRunner:
         return self._smart_wait_and_click(selectors[0], selectors[1:])
 
     def _select_price(self) -> None:
-        if self.config.price_index is None:
+        """Robust ticket price selection with multiple fallbacks and auto-scroll.
+
+        Strategy:
+        - Wait for any known container id to appear
+        - Prefer clickable child FrameLayout list, then generic clickable children
+        - Use index from config.price_index, scroll container if target not in view
+        - Optional text fallback when config.price present
+        """
+        if self.config.price_index is None and not getattr(self.config, "price", None):
             return
+
         driver = self._ensure_driver()
+        wait = WebDriverWait(driver, max(self.config.wait_timeout, 1.0))
+        container_ids = [
+            "cn.damai:id/project_detail_perform_price_flowlayout",
+            # 若 UI 变更，可尝试其它容器 id（兼容大小写或新命名）
+            "cn.damai:id/project_detail_perform_price_flowLayout",
+            "cn.damai:id/project_detail_perform_price_layout",
+        ]
+
+        container = None
+        for cid in container_ids:
+            try:
+                container = wait.until(EC.presence_of_element_located((By.ID, cid)))
+                break
+            except TimeoutException:
+                continue
+
+        if container is None:
+            self._log(LogLevel.WARNING, "未找到票价容器，跳过票价选择")
+            return
+
+        # 收集候选子项（优先 FrameLayout 且 clickable）
         try:
-            container = driver.find_element(
-                By.ID, "cn.damai:id/project_detail_perform_price_flowlayout"
-            )
-            target = container.find_element(
-                AppiumBy.ANDROID_UIAUTOMATOR,
-                'new UiSelector().className("android.widget.FrameLayout").index({}).clickable(true)'.format(
-                    self.config.price_index
-                ),
-            )
-            driver.execute_script("mobile: clickGesture", {"elementId": target.id})
-        except NoSuchElementException as exc:
-            self._log(LogLevel.WARNING, f"票价选择失败: {exc}")
+            items = container.find_elements(By.XPATH, './/android.widget.FrameLayout[@clickable="true"]')
+            if not items:
+                # 退化为查找任何可点击子元素
+                items = container.find_elements(By.XPATH, './/*[@clickable="true"]')
         except Exception as exc:  # noqa: BLE001
-            self._log(LogLevel.WARNING, f"票价选择异常: {exc}")
+            self._log(LogLevel.WARNING, f"收集票价子项失败: {exc}")
+            items = []
+
+        # 如果有 price_index，按索引选择目标
+        target_elem = None
+        if self.config.price_index is not None:
+            idx = int(self.config.price_index)
+            if items and 0 <= idx < len(items):
+                target_elem = items[idx]
+            else:
+                self._log(
+                    LogLevel.WARNING,
+                    f"票价索引越界或无可点击子项: index={idx}, items={len(items)}"
+                )
+
+        # 若未命中索引，尝试文本匹配（当 config.price 提供时）
+        if target_elem is None and getattr(self.config, "price", None):
+            price_text = str(self.config.price).strip()
+            if price_text:
+                # 优先使用 UiAutomator 文本匹配
+                try:
+                    target_elem = container.find_element(
+                        AppiumBy.ANDROID_UIAUTOMATOR,
+                        f'new UiSelector().textContains("{price_text}")'
+                    )
+                except Exception:
+                    # 退化为 XPath 文本包含
+                    try:
+                        target_elem = container.find_element(By.XPATH, f'.//*[contains(@text,"{price_text}")]')
+                    except Exception:
+                        target_elem = None
+
+        if target_elem is None:
+            self._log(LogLevel.WARNING, "未找到目标票价项，跳过票价选择")
+            return
+
+        # 若目标不在可视范围，尝试在容器内滚动将其带入视图
+        try:
+            # 最多滚动 5 次（方向向下）
+            attempts = 0
+            while attempts < 5 and not target_elem.is_displayed():
+                crect = container.rect
+                try:
+                    driver.execute_script(
+                        "mobile: scrollGesture",
+                        {
+                            "left": crect["x"],
+                            "top": crect["y"],
+                            "width": crect["width"],
+                            "height": crect["height"],
+                            "direction": "down",
+                            "percent": 0.8,
+                        },
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    self._log(LogLevel.WARNING, f"滚动失败: {exc}")
+                    break
+                attempts += 1
+                time.sleep(0.05)
+        except Exception as exc:  # noqa: BLE001
+            self._log(LogLevel.WARNING, f"可视区域检查失败: {exc}")
+
+        # 使用原生 clickGesture 点击目标（优先 elementId）
+        try:
+            if hasattr(target_elem, "id"):
+                driver.execute_script("mobile: clickGesture", {"elementId": target_elem.id})
+            else:
+                rect = target_elem.rect
+                driver.execute_script(
+                    "mobile: clickGesture",
+                    {
+                        "x": rect["x"] + rect["width"] // 2,
+                        "y": rect["y"] + rect["height"] // 2,
+                        "duration": 50,
+                    },
+                )
+            self._log(LogLevel.INFO, "票价选择完成", {"price_index": self.config.price_index})
+        except Exception as exc:  # noqa: BLE001
+            self._log(LogLevel.WARNING, f"票价选择点击异常: {exc}")
 
     def _select_quantity(self) -> None:
-        if not self.config.users or len(self.config.users) <= 1:
-            return
+        """Set ticket quantity based on available viewer toggles when possible.
+
+        Behavior:
+        - 统计确认页可点击的观演人切换控件数量（CheckBox/RadioButton/Switch/ImageView）
+        - 若找到控件，目标购票数 = 控件数量（至少为 1）
+        - 使用“加号按钮”(img_jia) 快速点按设定数量
+        """
         driver = self._ensure_driver()
         try:
+            toggles: List[Any] = []
+            try:
+                toggles.extend(driver.find_elements(By.XPATH, '//*[@class="android.widget.CheckBox" and @clickable="true"]'))
+                toggles.extend(driver.find_elements(By.XPATH, '//*[@class="android.widget.RadioButton" and @clickable="true"]'))
+                toggles.extend(driver.find_elements(By.XPATH, '//*[@class="android.widget.Switch" and @clickable="true"]'))
+                toggles.extend(driver.find_elements(By.XPATH, '//*[@class="android.widget.ImageView" and @clickable="true"]'))
+            except Exception as exc:  # noqa: BLE001
+                self._log(LogLevel.WARNING, f"统计观演人切换控件失败: {exc}")
+
+            desired_qty = max(1, len(toggles))
+            if desired_qty <= 1:
+                return
+
             plus_button = driver.find_element(By.ID, "img_jia")
             rect = plus_button.rect
-            for _ in range(len(self.config.users) - 1):
+            for _ in range(desired_qty - 1):
                 self._ensure_not_stopped()
                 driver.execute_script(
                     "mobile: clickGesture",
@@ -554,11 +672,176 @@ class DamaiAppTicketRunner:
         )
 
     def _select_users(self, users: Sequence[str]) -> None:
-        self._ensure_driver()
-        selectors = [
-            (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{user}")') for user in users
-        ]
-        self._ultra_batch_click(selectors)
+        """Robust viewer selection on the confirm page.
+
+        Strategy:
+        - 默认尝试勾选未选中的开关/圆点图标（CheckBox/RadioButton/Switch/ImageView）
+        - 若未检测到图标，再逐个按姓名文本匹配（精确→包含），点击最近的可点击祖先行
+        - 不在可视范围时滚动并重试，最大尝试 6 次
+        - 全程使用 mobile: clickGesture 原生点击
+        """
+        driver = self._ensure_driver()
+        wait = WebDriverWait(driver, max(self.config.wait_timeout, 1.0))
+
+        # 获取当前窗口矩形，用于 scrollGesture
+        try:
+            window = driver.get_window_rect()
+        except Exception:  # noqa: BLE001
+            window = {"x": 0, "y": 0, "width": 1080, "height": 1920}
+
+        def _click_center(elem: Any) -> bool:
+            try:
+                rect = elem.rect
+                driver.execute_script(
+                    "mobile: clickGesture",
+                    {
+                        "x": rect["x"] + rect["width"] // 2,
+                        "y": rect["y"] + rect["height"] // 2,
+                        "duration": 50,
+                    },
+                )
+                return True
+            except Exception as exc:  # noqa: BLE001
+                self._log(LogLevel.WARNING, f"点击观演人控件失败: {exc}")
+                return False
+
+        def _scroll_down() -> None:
+            try:
+                driver.execute_script(
+                    "mobile: scrollGesture",
+                    {
+                        "left": window["x"],
+                        "top": window["y"],
+                        "width": window["width"],
+                        "height": window["height"],
+                        "direction": "down",
+                        "percent": 0.85,
+                    },
+                )
+            except Exception as exc:  # noqa: BLE001
+                self._log(LogLevel.WARNING, f"观演人滚动失败: {exc}")
+
+        # 1) 默认全选：尝试勾选未选中的切换控件（CheckBox/RadioButton/Switch/ImageView）
+        attempts = 0
+        toggles_clicked = 0
+        while attempts < 6:
+            toggles: List[Any] = []
+            try:
+                toggles.extend(driver.find_elements(By.XPATH, '//*[@class="android.widget.CheckBox" and @clickable="true"]'))
+                toggles.extend(driver.find_elements(By.XPATH, '//*[@class="android.widget.RadioButton" and @clickable="true"]'))
+                toggles.extend(driver.find_elements(By.XPATH, '//*[@class="android.widget.Switch" and @clickable="true"]'))
+                toggles.extend(driver.find_elements(By.XPATH, '//*[@class="android.widget.ImageView" and @clickable="true"]'))
+            except Exception as exc:  # noqa: BLE001
+                self._log(LogLevel.WARNING, f"查找观演人切换控件失败: {exc}")
+                toggles = []
+
+            unchecked: List[Any] = []
+            for t in toggles:
+                try:
+                    checked = (t.get_attribute("checked") or "").lower()
+                    if checked not in ("true", "1", "yes"):
+                        if t.is_displayed():
+                            unchecked.append(t)
+                except Exception:
+                    if t.is_displayed():
+                        unchecked.append(t)
+
+            if unchecked:
+                for t in unchecked:
+                    if _click_center(t):
+                        toggles_clicked += 1
+                        time.sleep(0.02)
+                break
+            else:
+                _scroll_down()
+                attempts += 1
+                time.sleep(0.05)
+
+        if toggles_clicked > 0:
+            self._log(LogLevel.INFO, "已通过图标控件勾选观演人", {"count": toggles_clicked})
+            return
+
+        for user in users:
+            found = False
+            attempts = 0
+            while attempts < 6 and not found:
+                self._ensure_not_stopped()
+                elem = None
+                try:
+                    # 1) 精确文本匹配
+                    try:
+                        elem = wait.until(
+                            EC.presence_of_element_located(
+                                (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{user}")')
+                            )
+                        )
+                    except TimeoutException:
+                        # 2) 包含文本匹配
+                        try:
+                            elem = wait.until(
+                                EC.presence_of_element_located(
+                                    (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().textContains("{user}")')
+                                )
+                            )
+                        except TimeoutException:
+                            elem = None
+
+                    if elem is not None:
+                        # 优先选择最近的可点击祖先节点，保证命中行区域
+                        clickable = None
+                        try:
+                            clickable = driver.find_element(
+                                By.XPATH, f'//*[@text="{user}"]/ancestor::*[@clickable="true"][1]'
+                            )
+                        except Exception:  # noqa: BLE001
+                            try:
+                                clickable = driver.find_element(
+                                    By.XPATH, f'//*[contains(@text,"{user}")]/ancestor::*[@clickable="true"][1]'
+                                )
+                            except Exception:  # noqa: BLE001
+                                clickable = None
+
+                        target = clickable or elem
+                        try:
+                            rect = target.rect
+                            driver.execute_script(
+                                "mobile: clickGesture",
+                                {
+                                    "x": rect["x"] + rect["width"] // 2,
+                                    "y": rect["y"] + rect["height"] // 2,
+                                    "duration": 50,
+                                },
+                            )
+                            found = True
+                            time.sleep(0.02)
+                            continue
+                        except Exception as exc:  # noqa: BLE001
+                            self._log(LogLevel.WARNING, f"点击观演人失败: {user} | {exc}")
+
+                    # 3) 未找到或未能点击：向下滚动并重试
+                    try:
+                        driver.execute_script(
+                            "mobile: scrollGesture",
+                            {
+                                "left": window["x"],
+                                "top": window["y"],
+                                "width": window["width"],
+                                "height": window["height"],
+                                "direction": "down",
+                                "percent": 0.85,
+                            },
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        self._log(LogLevel.WARNING, f"观演人滚动失败: {exc}")
+                    attempts += 1
+                    time.sleep(0.05)
+                except Exception as exc:  # noqa: BLE001
+                    attempts += 1
+                    self._log(LogLevel.WARNING, f"选择观演人异常: {user} | {exc}")
+                    time.sleep(0.05)
+
+            if not found:
+                self._log(LogLevel.WARNING, f"未能选择观演人: {user}")
 
     def _submit_order(self) -> None:
         self._ensure_driver()
