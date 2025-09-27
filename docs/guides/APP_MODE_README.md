@@ -69,6 +69,28 @@
        adb version
        ```
 
+### 永久生效的环境变量（补充）
+
+如果你希望系统级别永久生效（便于 Appium 作为服务或其他程序读取），请按以下说明设置环境变量：
+
+1. 使用“系统属性” → “高级” → “环境变量”，在“系统变量”中新增：
+
+   - `ANDROID_SDK_ROOT` = `C:\Android`（或你的 SDK 根目录）
+   - `ANDROID_HOME` = `C:\Android`（建议同时设置以兼容旧工具）
+
+2. 在系统变量中的 `Path` 添加：`C:\Android\platform-tools`。
+
+3. 保存并退出后，请重启电脑以确保所有系统服务和桌面应用读取到新的环境变量。
+
+> 注意：将 `platform-tools` 路径加入系统 `PATH` 后，已有进程（包括作为服务运行的 Appium）不会自动读取到更新，重启后这些进程才会看到新变量。
+
+亦可使用命令行为当前用户写入（需重新打开终端或重启生效）：
+
+```powershell
+setx ANDROID_SDK_ROOT "C:\Android"
+setx ANDROID_HOME "C:\Android"
+```
+
 5. **下载/克隆项目**
     - 直接下载 ZIP 并解压，或使用 Git：
 
