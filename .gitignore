@@ -196,3 +196,5 @@ credentials.json
 # Lock files (except poetry.lock)
 *.lock
 !poetry.lock
+# Local release body temp file - do not commit
+.git_release_body.txt
