@@ -417,6 +417,12 @@ class DamaiGUI:
         
         # 启动定期保存cookie功能
         self.root.after(30000, self.auto_save_cookies_if_needed)  # 30秒后开始第一次检查
+
+        # 启动后台授权复检（被吊销时立即退出）
+        try:
+            self._start_authz_watchdog()
+        except Exception as exc:  # noqa: BLE001
+            self.log(f"⚠️ 授权监控未启动: {exc}")
         
     def _build_web_panel(self, container: ttk.Frame) -> None:
         """构建网页模式下的控制面板"""
@@ -2896,8 +2902,29 @@ App 模式小贴士：
         help_text.config(state="disabled")
 
 
+    def _start_authz_watchdog(self) -> None:
+        """后台授权复检：定期与原仓库通信，若授权被吊销或令牌无效则立即退出。"""
+        def _worker():
+            import time
+            from damai.authz import ensure_authorized
+            while True:
+                try:
+                    ensure_authorized()
+                except Exception as exc:  # noqa: BLE001
+                    try:
+                        messagebox.showerror("授权失效", f"该工具的授权已失效或被吊销：{exc}")
+                    except Exception:
+                        pass
+                    os._exit(1)
+                time.sleep(600)  # 每10分钟复检一次
+        try:
+            threading.Thread(target=_worker, daemon=True).start()
+        except Exception as exc:  # noqa: BLE001
+            self.log(f"⚠️ 授权监控启动失败: {exc}")
 def main():
     """主函数"""
+    from damai.authz import block_if_unauthorized_with_ui
+    block_if_unauthorized_with_ui()
     app = DamaiGUI()
     app.run()
 

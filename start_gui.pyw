@@ -12,6 +12,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
+    from damai.authz import block_if_unauthorized_with_ui
+    block_if_unauthorized_with_ui()
     from damai_gui import main
     main()
 except ImportError as e:
