@@ -1492,15 +1492,48 @@ class DamaiGUI:
     # App 模式依赖检测
     # ------------------------------------------------------------------
 
+    def _resolve_cli_command(self, command: str) -> Optional[str]:
+        """Locate an executable on PATH with Windows fallbacks."""
+
+        resolved = shutil.which(command)
+        if resolved:
+            return resolved
+
+        if os.name == "nt":
+            candidates: list[Path] = []
+
+            appdata = os.environ.get("APPDATA")
+            if appdata:
+                npm_dir = Path(appdata) / "npm"
+                candidates.extend(
+                    npm_dir / f"{command}{suffix}"
+                    for suffix in (".cmd", ".exe", "")
+                )
+
+            program_files = os.environ.get("PROGRAMFILES")
+            if program_files:
+                candidates.append(Path(program_files) / "nodejs" / f"{command}.exe")
+
+            program_files_x86 = os.environ.get("PROGRAMFILES(X86)")
+            if program_files_x86:
+                candidates.append(Path(program_files_x86) / "nodejs" / f"{command}.exe")
+
+            for candidate in candidates:
+                if candidate and candidate.exists():
+                    return str(candidate)
+
+        return None
+
     def _check_cli_dependency(self, command: str, args: List[str], friendly_name: str) -> Tuple[bool, str]:
         """尝试运行外部命令来检查依赖是否存在。"""
 
-        if not shutil.which(command):
+        executable = self._resolve_cli_command(command)
+        if not executable:
             return False, f"未找到 {friendly_name}（命令：{command}），请先安装并添加到 PATH。"
 
         try:
             result = subprocess.run(  # noqa: S603,S607
-                [command, *args],
+                [executable, *args],
                 capture_output=True,
                 text=True,
                 timeout=8,
@@ -1514,6 +1547,8 @@ class DamaiGUI:
             return False, f"{friendly_name} 返回码 {result.returncode}：{message}"
 
         summary = output.splitlines()[0] if output else "检测通过"
+        if executable != command:
+            summary = f"{summary}（路径：{executable}）"
         return True, summary
 
     def _check_node_cli(self) -> Tuple[bool, str]:
