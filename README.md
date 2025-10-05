@@ -105,7 +105,67 @@
 - 建议使用 `pip install -r requirements.txt` 自动安装所有依赖。
 - Windows 用户可以参考 [Windows 环境安装指南](docs/setup/windows_installation.md) 完成依赖配置。
 
-## 📁 项目结构
+## � 安装步骤（快速上手）
+
+以下步骤适用于 Windows PowerShell，其他平台命令可自行等效替换。
+
+1. 准备 Python 环境（推荐虚拟环境）
+
+```powershell
+# 进入项目根目录后创建并激活 venv
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# 升级 pip 并安装项目依赖
+python -m pip install -U pip
+pip install -r requirements.txt
+```
+
+1. 安装 App 模式前置（Node.js / Appium / ADB）
+
+- 安装 Node.js（LTS 版本），然后安装 Appium CLI 与 Doctor：
+
+```powershell
+npm install -g appium
+npm install -g appium-doctor
+appium-doctor --android
+```
+
+- 安装 Android Platform Tools（包含 adb），并将其 `platform-tools` 目录加入系统环境变量 `PATH`：
+	- 参考官方下载页：<https://developer.android.com/tools/releases/platform-tools>
+	- 将 `C:\\Android\\platform-tools`（或你的解压路径）追加到 PATH 后，建议重启系统以便所有程序生效。
+
+1. 验证环境
+
+```powershell
+where adb
+adb version
+appium -v
+```
+
+1. 启动 Appium 服务（默认 4723 端口）
+
+```powershell
+appium
+```
+
+1. 连接并授权设备
+
+```powershell
+adb devices -l
+# 若显示 unauthorized，请在手机上确认 USB 调试授权
+```
+
+1. 启动本工具的 GUI
+
+- 方式一：Windows 脚本
+	- 双击根目录的 `一键启动.bat`（或 `调试启动.bat`）
+- 方式二：Python 启动
+	- 在已激活的虚拟环境中运行：`pythonw start_gui.pyw`
+
+如需更完整的 App 模式图文说明与常见问题，请阅读：[App 模式零基础上手指南](docs/guides/APP_MODE_README.md)。
+
+## �📁 项目结构
 
 ```text
 damai-ticket-assistant/
