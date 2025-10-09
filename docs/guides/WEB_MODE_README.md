@@ -9,8 +9,7 @@
 ### 1.1 必备软件
 
 - **Python 3.9 及以上版本**（安装时勾选 *Add Python to PATH*）
-- **Google Chrome 浏览器**（建议保持最新稳定版）
-- **ChromeDriver**（版本需与 Chrome 浏览器主版本号一致）
+- **Google Chrome 浏览器**（建议保持最新稳定版；Selenium Manager 会自动管理 ChromeDriver，无需手动安装）
 
 ### 1.2 安装依赖
 

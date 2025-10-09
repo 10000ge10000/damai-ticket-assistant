@@ -19,6 +19,21 @@ echo.
 :: Switch to project root (two levels above scripts\windows)
 cd /d "%~dp0..\.."
 
+:: Prefer unified installer to reduce duplication of install logic
+if /I not "%~1"=="--legacy" (
+    echo [INFO] Delegating to PowerShell installer (scripts\windows\install_all.ps1)...
+    where pwsh >nul 2>&1
+    if %errorlevel%==0 (
+        pwsh -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\install_all.ps1"
+        goto :eof
+    )
+    where powershell >nul 2>&1
+    if %errorlevel%==0 (
+        powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\install_all.ps1"
+        goto :eof
+    )
+    echo [WARN] PowerShell not found; continuing legacy startup flow...
+)
 :: Check Python availability
 echo [1/6] Checking Python environment...
 python --version >nul 2>&1

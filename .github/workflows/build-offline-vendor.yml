@@ -1,0 +1,78 @@
+name: Build Offline Vendor Bundle
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  windows-offline-bundle:
+    name: Build vendor bundle (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          check-latest: true
+
+      - name: Prepare vendor directories
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path vendor | Out-Null
+          New-Item -ItemType Directory -Force -Path vendor/wheels,vendor/node,vendor/appium,vendor/platform-tools | Out-Null
+
+      - name: Build wheelhouse
+        shell: pwsh
+        run: |
+          python -m pip install -U pip wheel
+          python -m pip download -r requirements.txt -d vendor/wheels
+
+      - name: Pack Appium tgz (offline)
+        shell: pwsh
+        run: |
+          Push-Location vendor/appium
+          npm pack appium@latest
+          npm pack appium-doctor@latest
+          Pop-Location
+
+      - name: Download Platform Tools zip
+        shell: pwsh
+        run: |
+          $dest = "vendor/platform-tools/platform-tools-latest-windows.zip"
+          Invoke-WebRequest -Uri "https://dl.google.com/android/repository/platform-tools-latest-windows.zip" -OutFile $dest -UseBasicParsing
+
+      - name: Generate SHA256SUMS
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path vendor -Recurse -File | ForEach-Object {
+            $h = Get-FileHash $_.FullName -Algorithm SHA256
+            "{0}  {1}" -f $h.Hash, $_.FullName
+          } | Set-Content -Path vendor/SHA256SUMS.txt -Encoding UTF8
+
+      - name: Archive vendor-bundle.zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path vendor\* -DestinationPath vendor-bundle.zip -Force
+
+      - name: Upload artifact (folder)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor-bundle
+          path: vendor
+
+      - name: Upload artifact (zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor-bundle-zip
+          path: vendor-bundle.zip

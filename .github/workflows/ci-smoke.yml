@@ -1,0 +1,47 @@
+name: CI Smoke
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  windows-smoke:
+    name: Windows one-click install (light)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: One-click installer (no GUI, skip heavy deps)
+        shell: pwsh
+        run: ./scripts/windows/install_all.ps1 -StartGui:$false -SkipNode -SkipAppium -SkipAdb
+
+      - name: Verify venv and core imports
+        shell: pwsh
+        run: |
+          $py = ".\.venv\Scripts\python.exe"
+          if (-not (Test-Path $py)) { throw "venv python not found" }
+          & $py -c "import sys; import selenium, pydantic; print('PYOK', sys.version)"
+
+      - name: Basic pip environment info
+        shell: pwsh
+        run: |
+          python -V
+          pip -V
+          pip list
+
+      - name: Show debug log on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path .\log.txt) { Get-Content .\log.txt -Tail 200 }

@@ -96,7 +96,7 @@
 ## 🧩 环境要求
 
 - **Python 3.7+**
-- **Chrome 浏览器** 与 **ChromeDriver**（版本需匹配）
+- Chrome 浏览器（建议使用最新稳定版；Selenium Manager 会自动管理 ChromeDriver，无需手动安装）
 - **核心依赖库**：
   - `selenium`
   - `Appium-Python-Client`
@@ -158,9 +158,13 @@ adb devices -l
 
 1. 启动本工具的 GUI
 
-- 方式一：Windows 脚本
-	- 双击根目录的 `一键启动.bat`（或 `调试启动.bat`）
-- 方式二：Python 启动
+- 方式一：Windows 脚本（推荐）
+	- 双击 `scripts/windows/oneclick_start.bat`（一键安装 + 启动）
+	- 或双击 `scripts/windows/start_gui.bat`（仅启动 GUI）
+	- 如需查看详细日志，使用 `scripts/windows/debug_gui.bat`
+- 方式二：PowerShell 启动
+	- 在终端执行：`pwsh ./scripts/windows/install_all.ps1`（一键安装 + 可选启动）
+- 方式三：Python 启动
 	- 在已激活的虚拟环境中运行：`pythonw start_gui.pyw`
 
 如需更完整的 App 模式图文说明与常见问题，请阅读：[App 模式零基础上手指南](docs/guides/APP_MODE_README.md)。
@@ -278,3 +282,31 @@ damai-ticket-assistant/
 
 **感谢您的支持！** 🎉
 
+
+## 🧳 离线一键安装（完全一键）
+
+若需在无网络或受限网络环境中完成“完全一键安装+启动”，可使用离线依赖打包与本仓库内置的 vendor 优先安装流程。
+
+- 离线指引与打包规范：
+  - 详见文档 (docs/setup/OFFLINE_BUNDLE.md:1)，提供目录规范、打包方法与 CI 建议
+- 生成离线包（wheel/node/appium/platform-tools）：
+  - 在联网机器上运行 (scripts/windows/make_offline_vendor.ps1:1) 自动生成 vendor/ 目录
+- 使用离线包进行一键安装：
+  - 双击 (scripts/windows/oneclick_start.bat:1) 或在 PowerShell 执行：
+    - `pwsh ./scripts/windows/install_all.ps1`（脚本已支持 vendor 优先、在线回退）
+  - 安装脚本入口 (scripts/windows/install_all.ps1:1) 会优先使用 vendor/wheels（离线 pip 依赖）、vendor/node（Node.js Zip）、vendor/appium（Appium tgz）、vendor/platform-tools（ADB Zip）
+- 目录结构与文件放置（示例）：
+  - `vendor/wheels/*.whl`（pip 离线 wheelhouse）
+  - `vendor/node/node-v20.x.y-win-x64.zip`（包含 node.exe 与 npm）
+  - `vendor/appium/appium-*.tgz`、`appium-doctor-*.tgz`（通过 `npm pack` 生成）
+  - `vendor/platform-tools/platform-tools-latest-windows.zip`（Android Platform Tools 原包）
+- 备注与合规：
+  - 浏览器不建议内置（体积大且更新频繁）；Selenium Manager 会自动管理 ChromeDriver
+  - 分发第三方二进制请遵循各自许可证；可在发布物中附带 `THIRD_PARTY_NOTICES.txt`
+
+使用流程（离线环境简要）
+1. 在已准备好的离线 vendor/ 目录下，运行 (scripts/windows/oneclick_start.bat:1) 或 (scripts/windows/install_all.ps1:1)
+2. 脚本将按“vendor 优先、在线回退”的策略执行依赖安装与 GUI 启动
+3. 若某离线包缺失且无法联网，脚本会给出提示并保留兼容的手动路径（例如：手动解压 node Zip/Platform Tools 并加入 PATH）
+
+如需发布企业/团队离线包，建议在 CI 中打包并附带校验文件后分发；参考 (docs/setup/OFFLINE_BUNDLE.md:1) 的“CI/CD 与发布产物”章节。

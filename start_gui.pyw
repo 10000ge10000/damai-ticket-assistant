@@ -24,8 +24,8 @@ except ImportError as e:
     root.withdraw()  # 隐藏主窗口
     
     messagebox.showerror(
-        "依赖缺失", 
-        f"缺少必要的依赖库！\n\n错误信息：{e}\n\n请先运行 '安装依赖.bat' 或\n手动执行：pip install -r requirements.txt"
+        "依赖缺失",
+        f"缺少必要的依赖库！\n\n错误信息：{e}\n\n建议：\n1）双击 scripts\\windows\\oneclick_start.bat\n2）或在 PowerShell 执行：scripts\\windows\\install_all.ps1\n3）或手动执行：pip install -r requirements.txt"
     )
     sys.exit(1)
 except Exception as e:
@@ -36,7 +36,7 @@ except Exception as e:
     root.withdraw()
     
     messagebox.showerror(
-        "启动失败", 
-        f"程序启动失败！\n\n错误信息：{e}\n\n请检查文件完整性或运行 '一键启动GUI版本.bat'"
+        "启动失败",
+        f"程序启动失败！\n\n错误信息：{e}\n\n请检查文件完整性或运行 scripts\\windows\\oneclick_start.bat"
     )
     sys.exit(1)

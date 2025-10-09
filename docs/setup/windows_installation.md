@@ -2,18 +2,36 @@
 
 > 建议使用 PowerShell 7+ 或 Windows Terminal 执行以下命令。
 
-## 1. 准备 Python 环境
+## 0. 推荐：一键安装与启动
+
+- 方式一：双击脚本
+  - 双击 `scripts/windows/oneclick_start.bat`（自动调用 PowerShell 脚本完成依赖安装并启动 GUI）
+- 方式二：命令行执行
+  - 在项目根目录执行：
+    ```powershell
+    pwsh ./scripts/windows/install_all.ps1
+    ```
+- 脚本将自动执行：
+  - 检测/创建虚拟环境（venv），安装 `requirements.txt`
+  - 检测 Node.js 并安装 Appium CLI（npm -g appium）
+  - 检测 adb；必要时自动下载 Android Platform Tools 并加入当前会话 PATH
+  - 启动 `start_gui.pyw`（优先使用 pythonw）
+- 网络受限场景下，脚本会自动回退至清华镜像源安装依赖。
+
+> ChromeDriver 无需手动安装，Selenium Manager 会自动管理驱动（随 Selenium 4.18+）。
+
+## 1. 准备 Python 环境（手动路径）
 
 1. 确保已安装 Python 3.8 及以上版本，可以在终端执行 `python --version` 检查。
 2. 勾选 “Add Python to PATH”，或手动将 Python 安装目录加入系统 PATH。
 
-## 2. 安装项目依赖
+## 2. 手动安装项目依赖
 
 在项目根目录执行以下命令：
 
 ```powershell
 cd "C:\path\to\damai-ticket-assistant"
-pip install --upgrade pip
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 

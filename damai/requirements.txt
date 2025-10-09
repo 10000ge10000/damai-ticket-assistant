@@ -1,1 +1,4 @@
+# Deprecated: this per-module requirements file is kept for compatibility only.
+# Please install from project root:
+#   pip install -r requirements.txt
 selenium==4.18.1
