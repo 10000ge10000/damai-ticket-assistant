@@ -1,0 +1,12 @@
+{
+  "server_url": "127.0.0.1:4723",
+  "keyword": "演出/歌手/关键字",
+  "users": [
+    "观演人姓名（示例）"
+  ],
+  "city": "北京",
+  "date": "",
+  "price": "",
+  "price_index": 0,
+  "if_commit_order": false
+}
