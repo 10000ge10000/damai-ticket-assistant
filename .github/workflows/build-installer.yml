@@ -6,6 +6,9 @@ on:
     tags:
       - 'installer-v*' # 当推送 installer-v* 格式的 tag 时触发
 
+permissions:
+  contents: write  # 允许创建 release
+
 jobs:
   build:
     name: Build Installer
