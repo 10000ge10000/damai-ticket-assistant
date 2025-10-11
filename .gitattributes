@@ -1,0 +1,4 @@
+# Exclude installer files from git archive exports (project zip)
+damai_installer/installer_files/* export-ignore
+# Exclude CI artifacts and workflows from project archive
+.github/* export-ignore
