@@ -47,7 +47,17 @@ class DamaiInstaller(tk.Tk):
         """加载组件配置"""
         config_path = resource_path("resources/components.json")
         with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            components = json.load(f)
+
+        # 补全缺失字段，防止 UI 初始化时报 KeyError
+        for comp in components:
+            if 'status' not in comp or comp.get('status') is None:
+                comp['status'] = '未安装'
+            comp.setdefault('file', '')
+            comp.setdefault('install_cmd', '')
+            comp.setdefault('extract_dir', '')
+
+        return components
 
     def create_ui(self):
         """创建UI界面"""
