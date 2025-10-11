@@ -1,0 +1,65 @@
+name: Build and Release Installer
+
+on:
+  workflow_dispatch: # 允许手动触发
+  push:
+    tags:
+      - 'installer-v*' # 当推送 installer-v* 格式的 tag 时触发
+
+jobs:
+  build:
+    name: Build Installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Build Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller requests
+
+      - name: Download Third-party Installers
+        run: python damai_installer/scripts/download_installers.py
+
+      - name: Build Python Dependency Wheels
+        run: pip wheel -r damai_installer/resources/requirements.txt -w damai_installer/installer_files/wheels
+
+      - name: Build Installer Executable
+        run: |
+          cd damai_installer
+          pyinstaller --name="大麦助手一键安装器" --windowed --add-data="resources;resources" --add-data="installer_files;installer_files" src/installer.py
+          cd ..
+
+      - name: Create Zip Package
+        run: |
+          cd damai_installer/dist
+          powershell Compress-Archive -Path "大麦助手一键安装器" -DestinationPath "大麦助手一键安装器-${{ github.ref_name }}.zip" -Force
+          cd ../..
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: damai_installer/dist/*.zip
+          body: |
+            # 大麦票务助手一键安装器 ${{ github.ref_name }}
+
+            ## 功能特点
+            - 自动安装 Python 3.11.6
+            - 自动安装 Node.js 18.18.2 LTS
+            - 自动安装 Appium Server 2.5.0
+            - 自动安装 Android Platform Tools
+            - 自动安装项目依赖
+
+            ## 使用方法
+            1. 下载并解压此页面下的 `大麦助手一键安装器-*.zip` 文件
+            2. 以管理员身份运行 `大麦助手一键安装器.exe`
+            3. 点击 "一键安装全部" 按钮

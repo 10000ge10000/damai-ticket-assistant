@@ -1,0 +1,5 @@
+appium-python-client
+selenium
+Appium-Flutter-Finder
+pytest
+jsonc-parser
