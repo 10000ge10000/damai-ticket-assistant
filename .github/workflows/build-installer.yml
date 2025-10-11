@@ -44,16 +44,20 @@ jobs:
       - name: Create Zip Package
         run: |
           cd damai_installer/dist
-          # 明确将安装器 ZIP 命名为 installer-<tag>.zip
-          powershell Compress-Archive -Path "大麦助手一键安装器" -DestinationPath "installer-${{ github.ref_name }}.zip" -Force
+          # 提取版本号（去掉installer-前缀）
+          $version = "${{ github.ref_name }}" -replace "^installer-", ""
+          # 使用更友好的命名方式：大麦助手-安装器-v版本号.zip
+          powershell Compress-Archive -Path "大麦助手一键安装器" -DestinationPath "大麦助手-安装器-$version.zip" -Force
           cd ../..
 
       - name: Create Project Zip
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           mkdir -Force damai_installer\dist
-          # Create a project-only archive named project-<tag>.zip (no 'installer' in filename)
-          git archive --format=zip --output=damai_installer/dist/project-${{ github.ref_name }}.zip HEAD
+          # 提取版本号（去掉installer-前缀）
+          $version = "${{ github.ref_name }}" -replace "^installer-", ""
+          # 使用更友好的命名方式：大麦助手-源代码-v版本号.zip
+          git archive --format=zip --output=damai_installer/dist/大麦助手-源代码-$version.zip HEAD
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -71,6 +75,10 @@ jobs:
             - 自动安装项目依赖
 
             ## 使用方法
-            1. 下载并解压此页面下的 `大麦助手一键安装器-*.zip` 文件
+            1. 下载并解压此页面下的 `大麦助手-安装器-*.zip` 文件
             2. 以管理员身份运行 `大麦助手一键安装器.exe`
             3. 点击 "一键安装全部" 按钮
+            
+            ## 下载说明
+            - `大麦助手-安装器-*.zip`: 包含可执行的一键安装程序
+            - `大麦助手-源代码-*.zip`: 包含项目完整源代码
