@@ -44,13 +44,15 @@ jobs:
       - name: Create Zip Package
         run: |
           cd damai_installer/dist
-          powershell Compress-Archive -Path "大麦助手一键安装器" -DestinationPath "大麦助手一键安装器-${{ github.ref_name }}.zip" -Force
+          # 明确将安装器 ZIP 命名为 installer-<tag>.zip
+          powershell Compress-Archive -Path "大麦助手一键安装器" -DestinationPath "installer-${{ github.ref_name }}.zip" -Force
           cd ../..
 
       - name: Create Project Zip
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           mkdir -Force damai_installer\dist
+          # Create a project-only archive named project-<tag>.zip (no 'installer' in filename)
           git archive --format=zip --output=damai_installer/dist/project-${{ github.ref_name }}.zip HEAD
 
       - name: Create Release
