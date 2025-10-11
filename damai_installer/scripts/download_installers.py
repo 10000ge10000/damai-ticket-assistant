@@ -18,7 +18,7 @@ INSTALLER_FILES = {
 }
 
 def download_file(url, destination):
-    print(f"下载: {url} -> {destination}")
+    print(f"Downloading: {url} -> {destination}")
     urllib.request.urlretrieve(url, destination)
 
 def main():
@@ -28,15 +28,15 @@ def main():
     for name, info in INSTALLER_FILES.items():
         target_path = os.path.join(install_dir, info["filename"])
         if os.path.exists(target_path):
-            print(f"'{info['filename']}' 已存在, 跳过下载。")
+            print(f"'{info['filename']}' already exists, skipping download.")
             continue
         try:
             download_file(info["url"], target_path)
         except Exception as e:
-            print(f"下载 '{name}' 失败: {e}", file=sys.stderr)
+            print(f"Download '{name}' failed: {e}", file=sys.stderr)
             sys.exit(1)
             
-    print("所有文件下载完成。")
+    print("All files downloaded successfully.")
 
 if __name__ == "__main__":
     main()
