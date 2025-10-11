@@ -1,0 +1,33 @@
+[
+  {
+    "name": "Python 3.11.6",
+    "type": "exe",
+    "file": "python-3.11.6-amd64.exe",
+    "install_cmd": "\"{path}\" /quiet PrependPath=1",
+    "check_cmd": "python --version"
+  },
+  {
+    "name": "Node.js 18.18.2 LTS",
+    "type": "msi",
+    "file": "node-v18.18.2-x64.msi",
+    "install_cmd": "msiexec /i \"{path}\" /quiet",
+    "check_cmd": "node --version"
+  },
+  {
+    "name": "Appium Server 2.5.0",
+    "type": "npm",
+    "install_cmd": "npm install -g appium@2.5.0",
+    "check_cmd": "appium --version"
+  },
+  {
+    "name": "Android Platform Tools",
+    "type": "zip",
+    "file": "platform-tools-latest-windows.zip",
+    "extract_dir": "C:/platform-tools"
+  },
+  {
+    "name": "项目依赖安装",
+    "type": "pip",
+    "install_cmd": "pip install --no-index --find-links=\"{wheels_dir}\" -r \"{requirements}\""
+  }
+]
